@@ -739,6 +739,7 @@ public class GitHistoryRefactoringMinerImpl implements GitHistoryRefactoringMine
 			refactorings.addAll(moveSourceFolderRefactorings);
 			refactorings = filter(refactorings);
 			handler.handleModelDiff(id, refactorings, modelDiff);
+			handler.handleModelDiffWithContent(id, refactorings, modelDiff, fileContentsBefore, fileContentsAfter);
 		} catch (Exception e) {
 			logger.warn(String.format("Ignored revision %s due to error", id), e);
 			handler.handleException(id, e);

@@ -5,19 +5,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
+import gr.uom.java.xmi.diff.UMLModelDiff;
 import gui.webdiff.WebDiffRunnerCli;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.lib.Repository;
-import org.refactoringminer.api.GitHistoryRefactoringMiner;
-import org.refactoringminer.api.GitService;
-import org.refactoringminer.api.Refactoring;
-import org.refactoringminer.api.RefactoringHandler;
+import org.refactoringminer.api.*;
 import org.refactoringminer.rm1.GitHistoryRefactoringMinerImpl;
 import org.refactoringminer.util.GitServiceImpl;
+import spark.utils.CollectionUtils;
 
 public class RefactoringMiner {
 	private static Path path = null;
@@ -47,10 +44,88 @@ public class RefactoringMiner {
 			detectAtGitHubPullRequest(args);
 		} else if (option.equalsIgnoreCase("diff")) {
 			new WebDiffRunnerCli().execute(Arrays.copyOfRange(args, 1, args.length));
+		}else if(option.equalsIgnoreCase("-scr")){
+			detectRefactoringBySourceCode(args);
 		}
 		else {
 			throw argumentException();
 		}
+	}
+
+	private static void detectRefactoringBySourceCode(String[] args) throws Exception{
+		String fileName = args[1];
+		String sourceCodeBeforeFile = args[2];
+		String sourceCodeAfterFile = args[3];
+		String sourceCodeBefore = new String(Files.readAllBytes(Paths.get(sourceCodeBeforeFile)));
+		String sourceCodeAfter = new String(Files.readAllBytes(Paths.get(sourceCodeAfterFile)));
+		GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+		Map<String, String> fileContentsBefore = new HashMap<>();
+		Map<String, String> fileContentsCurrent = new HashMap<>();
+		fileContentsBefore.put(fileName, sourceCodeBefore);
+		fileContentsCurrent.put(fileName, sourceCodeAfter);
+		final boolean[] detectResult = {false, false};
+		detector.detectAtFileContents(fileContentsBefore, fileContentsCurrent, new RefactoringHandler() {
+			@Override
+			public void handle(String commitId, List<Refactoring> refactorings) {
+				if(!refactorings.isEmpty()) {
+					detectResult[0] = true;
+				}
+			}
+
+			@Override
+			public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+				System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+						commitsCount, errorCommitsCount, refactoringsCount));
+			}
+
+			@Override
+			public void handleException(String commit, Exception e) {
+				System.err.println("Error processing commit " + commit);
+				e.printStackTrace(System.err);
+			}
+
+			@Override
+			public void handleModelDiffWithContent(String commitId, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+				detectResult[1] = true;
+				if(CollectionUtils.isEmpty(refactorings)) {
+					detectResult[1] = false;
+					return;
+				}
+				boolean isPure = false;
+				for (Refactoring refactoring : refactorings) {
+					if(!isForRefactoringType(refactoring)) {
+						continue;
+					}
+					PurityCheckResult purityCheckResult = PurityChecker.check(refactoring, refactorings,modelDiff);
+					if(purityCheckResult != null && purityCheckResult.isPure()) {
+						isPure = true;
+					}
+				}
+				detectResult[1] = isPure;
+			}
+		});
+		System.out.println(detectResult[0] + " " + detectResult[1]);
+	}
+
+	private static boolean isForRefactoringType(Refactoring refactoring){
+		if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Extract Method")){
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Extract and Move Method")){
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Inline Method")){
+			return true;
+		}else if (StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Move and Inline Method")){
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Move Method")) {
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Move and Rename Method")) {
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Pull Up Method")) {
+			return true;
+		}else if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), "Push Down Method")) {
+			return true;
+		}
+		return false;
 	}
 
 	public static void detectAll(String[] args) throws Exception {

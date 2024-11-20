@@ -1,6 +1,7 @@
 package org.refactoringminer.api;
 
 import java.util.List;
+import java.util.Map;
 
 import gr.uom.java.xmi.diff.UMLModelDiff;
 
@@ -52,4 +53,6 @@ public abstract class RefactoringHandler {
 	public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {}
 
 	public void handleModelDiff(String commitId, List<Refactoring> refactoringsAtRevision, UMLModelDiff modelDiff) {}
+
+	public void handleModelDiffWithContent(String commitId, List<Refactoring> refactoringsAtRevision, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {}
 }
