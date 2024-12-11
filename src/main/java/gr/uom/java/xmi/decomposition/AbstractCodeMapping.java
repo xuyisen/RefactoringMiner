@@ -123,8 +123,24 @@ public abstract class AbstractCodeMapping implements LeafMappingProvider {
 	}
 
 	public boolean isExact() {
-		return (fragment1.getArgumentizedString().equals(fragment2.getArgumentizedString()) || argumentizedStringExactAfterTypeReplacement() ||
-				fragment1.getString().equals(fragment2.getString()) || isExactAfterAbstraction() || containsIdenticalOrCompositeReplacement()) && !fragment1.isKeyword();
+		return  !fragment1.isKeyword() && (fragment1.getArgumentizedString().equals(fragment2.getArgumentizedString()) || argumentizedStringExactAfterTypeReplacement() ||
+				fragment1.getString().equals(fragment2.getString()) || isExactAfterAbstraction() || containsIdenticalOrCompositeReplacement() || callChainMatch());
+	}
+
+	private boolean callChainMatch() {
+		String s1 = fragment1.getArgumentizedString();
+		String s2 = fragment2.getArgumentizedString();
+		String longestCommonPrefix = PrefixSuffixUtils.longestCommonPrefix(s1, s2);
+		String longestCommonSuffix = PrefixSuffixUtils.longestCommonSuffix(s1, s2);
+		if(longestCommonSuffix.startsWith(").")) {
+			longestCommonSuffix = longestCommonSuffix.substring(2);
+		}
+		if(longestCommonPrefix.endsWith(".") && !longestCommonPrefix.contains(JAVA.ASSIGNMENT) && !longestCommonPrefix.startsWith("if(") &&
+				!longestCommonSuffix.startsWith(longestCommonPrefix) &&
+				(s1.equals(longestCommonPrefix + longestCommonSuffix) || s2.equals(longestCommonPrefix + longestCommonSuffix))) {
+			return true;
+		}
+		return false;
 	}
 
 	private boolean argumentizedStringExactAfterTypeReplacement() {
@@ -204,12 +220,28 @@ public abstract class AbstractCodeMapping implements LeafMappingProvider {
 	}
 
 	public void addReplacement(Replacement replacement) {
-		this.replacements.add(replacement);
+		//eliminate cyclic replacements
+		Replacement toRemove = null;
+		for(Replacement r : replacements) {
+			if(r.getBefore().equals(replacement.getAfter()) && r.getAfter().equals(replacement.getBefore()) && 
+					!r.getType().equals(ReplacementType.COMPOSITE) && !replacement.getType().equals(ReplacementType.COMPOSITE)) {
+				toRemove = r;
+				break;
+			}
+		}
+		if(toRemove != null) {
+			this.replacements.remove(toRemove);
+		}
+		else {
+			this.replacements.add(replacement);
+		}
 	}
 
 	public void addReplacements(Set<Replacement> replacements) {
 		if(replacements != null) {
-			this.replacements.addAll(replacements);
+			for(Replacement r : replacements) {
+				addReplacement(r);
+			}
 		}
 		else {
 			matchedWithNullReplacements = true;

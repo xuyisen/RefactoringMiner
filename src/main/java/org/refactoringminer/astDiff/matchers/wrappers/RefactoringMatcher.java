@@ -250,10 +250,11 @@ public class RefactoringMatcher extends OptimizationAwareMatcher {
                         eligible = !renameVariableRefactoring.isInsideExtractedOrInlinedMethod();
                         if (!eligible)
                             break;
-                        while (!TreeUtilFunctions.isStatement(dstInput.getType().name)) {
+                        while (dstInput != null && !TreeUtilFunctions.isStatement(dstInput.getType().name) ) {
                             if (dstInput.getType() == null) break;
                             dstInput = dstInput.getParent();
                         }
+                        if (dstInput == null) return;
                         if (TreeUtilFunctions.isStatement(dstInput.getType().name)){
                             new LeafMatcher().match(srcInput,dstInput,mappingStore);
                         }
@@ -391,7 +392,7 @@ public class RefactoringMatcher extends OptimizationAwareMatcher {
             ImmutablePair<String, String> refactoringClassBefore = involvedClassesBeforeRefactoring.iterator().next();
             ImmutablePair<String, String> refactoringClassAfter = involvedClassesAfterRefactoring.iterator().next();
             if (umlClassBefore.getLocationInfo().getFilePath().equals(refactoringClassBefore.getLeft())
-                    && umlClassAfter.getLocationInfo().getFilePath().equals(refactoringClassAfter.getLeft())) {
+                    || umlClassAfter.getLocationInfo().getFilePath().equals(refactoringClassAfter.getLeft())) {
                 String refactoringClassNameBefore = refactoringClassBefore.getRight();
                 String refactoringClassNameAfter = refactoringClassAfter.getRight();
                 // Relied on || in order to ascertain at least one class involves (handling move to anonymous and vice versa)

@@ -48,7 +48,7 @@ public class UMLCommentListDiff {
 		List<UMLCommentGroup> groupsAfterToBeRemoved = new ArrayList<UMLCommentGroup>();
 		for(UMLCommentGroup groupBefore : groupsBefore) {
 			for(UMLCommentGroup groupAfter : groupsAfter) {
-				if(groupBefore.sameText(groupAfter)) {
+				if(groupBefore.sameText(groupAfter) && !groupsAfterToBeRemoved.contains(groupAfter)) {
 					for(int i=0; i<groupBefore.getGroup().size(); i++) {
 						UMLComment commentBefore = groupBefore.getGroup().get(i);
 						UMLComment commentAfter = groupAfter.getGroup().get(i);
@@ -67,7 +67,31 @@ public class UMLCommentListDiff {
 		groupsAfter.removeAll(groupsAfterToBeRemoved);
 		for(UMLCommentGroup groupBefore : groupsBefore) {
 			for(UMLCommentGroup groupAfter : groupsAfter) {
-				if(groupBefore.modifiedMatchingText(groupAfter)) {
+				if(groupBefore.subGroupSameText(groupAfter) && !groupsAfterToBeRemoved.contains(groupAfter)) {
+					for(int i=0; i<groupBefore.getGroup().size(); i++) {
+						for(int j=0; j<groupAfter.getGroup().size(); j++) {
+							UMLComment commentBefore = groupBefore.getGroup().get(i);
+							UMLComment commentAfter = groupAfter.getGroup().get(j);
+							if(commentBefore.getText().equals(commentAfter.getText())) {
+								Pair<UMLComment, UMLComment> pair = Pair.of(commentBefore, commentAfter);
+								commonComments.add(pair);
+								deletedComments.remove(commentBefore);
+								addedComments.remove(commentAfter);
+								break;
+							}
+						}
+					}
+					groupsBeforeToBeRemoved.add(groupBefore);
+					groupsAfterToBeRemoved.add(groupAfter);
+					break;
+				}
+			}
+		}
+		groupsBefore.removeAll(groupsBeforeToBeRemoved);
+		groupsAfter.removeAll(groupsAfterToBeRemoved);
+		for(UMLCommentGroup groupBefore : groupsBefore) {
+			for(UMLCommentGroup groupAfter : groupsAfter) {
+				if(groupBefore.modifiedMatchingText(groupAfter) && !groupsAfterToBeRemoved.contains(groupAfter)) {
 					for(int i=0; i<groupBefore.getGroup().size(); i++) {
 						UMLComment commentBefore = groupBefore.getGroup().get(i);
 						UMLComment commentAfter = groupAfter.getGroup().get(i);
@@ -188,7 +212,8 @@ public class UMLCommentListDiff {
 			for(UMLComment deletedComment : new ArrayList<>(deletedComments)) {
 				for(Pair<UMLComment, UMLComment> pair : commonComments) {
 					if(pair.getLeft().getText().equals(deletedComment.getText()) &&
-							pair.getRight().getText().equals(deletedComment.getText())) {
+							pair.getRight().getText().equals(deletedComment.getText()) &&
+							!deletedComment.isCommentedCode() && !deletedComment.nestedInCatchBlock()) {
 						Pair<UMLComment, UMLComment> newPair = Pair.of(deletedComment, pair.getRight());
 						commonComments.add(newPair);
 						deletedComments.remove(deletedComment);
@@ -202,7 +227,8 @@ public class UMLCommentListDiff {
 			for(UMLComment addedComment : new ArrayList<>(addedComments)) {
 				for(Pair<UMLComment, UMLComment> pair : commonComments) {
 					if(pair.getLeft().getText().equals(addedComment.getText()) &&
-							pair.getRight().getText().equals(addedComment.getText())) {
+							pair.getRight().getText().equals(addedComment.getText()) &&
+							!addedComment.isCommentedCode() && !addedComment.nestedInCatchBlock()) {
 						Pair<UMLComment, UMLComment> newPair = Pair.of(pair.getLeft(), addedComment);
 						commonComments.add(newPair);
 						addedComments.remove(addedComment);
@@ -273,6 +299,49 @@ public class UMLCommentListDiff {
 	}
 
 	private void processModifiedComments(List<UMLComment> deletedComments, List<UMLComment> addedComments) {
+		if(deletedComments.isEmpty() || addedComments.isEmpty()) {
+			this.deletedComments.addAll(deletedComments);
+			this.addedComments.addAll(addedComments);
+			return;
+		}
+		List<UMLCommentGroup> groupsBefore = createCommentGroups(deletedComments);
+		List<UMLCommentGroup> groupsAfter = createCommentGroups(addedComments);
+		if(groupsBefore.size() <= groupsAfter.size()) {
+			for(UMLCommentGroup groupBefore : groupsBefore) {
+				for(UMLCommentGroup groupAfter : groupsAfter) {
+					processModifiedComments(groupBefore, groupAfter);
+				}
+			}
+		}
+		else {
+			for(UMLCommentGroup groupAfter : groupsAfter) {
+				for(UMLCommentGroup groupBefore : groupsBefore) {
+					processModifiedComments(groupBefore, groupAfter);
+				}
+			}
+		}
+		if(groupsBefore.isEmpty() && groupsAfter.isEmpty()) {
+			UMLCommentGroup groupBefore = new UMLCommentGroup();
+			for(UMLComment comment : deletedComments)
+				groupBefore.addComment(comment);
+			UMLCommentGroup groupAfter = new UMLCommentGroup();
+			for(UMLComment comment : addedComments)
+				groupAfter.addComment(comment);
+			processModifiedComments(groupBefore, groupAfter);
+			this.deletedComments.addAll(groupBefore.getGroup());
+			this.addedComments.addAll(groupAfter.getGroup());
+		}
+		for(UMLCommentGroup group : groupsBefore) {
+			this.deletedComments.addAll(group.getGroup());
+		}
+		for(UMLCommentGroup group : groupsAfter) {
+			this.addedComments.addAll(group.getGroup());
+		}
+	}
+
+	private void processModifiedComments(UMLCommentGroup groupBefore, UMLCommentGroup groupAfter) {
+		List<UMLComment> deletedComments = groupBefore.getGroup();
+		List<UMLComment> addedComments = groupAfter.getGroup();
 		//match comments differing only in opening/closing quotes
 		if(deletedComments.size() <= addedComments.size()) {
 			for(UMLComment deletedComment : new ArrayList<>(deletedComments)) {
@@ -358,7 +427,7 @@ public class UMLCommentListDiff {
 				for(int i=0; i<deletedTokenSequence.size(); i++) {
 					for(int j=i+1; j<deletedTokenSequence.size(); j++) {
 						List<String> subList = deletedTokenSequence.subList(i,j+1);
-						if(subList.size() > 2) {
+						if(subList.size() > 2 || subListInQuotes(addedTokenSequence, subList)) {
 							int indexOfSubList = Collections.indexOfSubList(addedTokenSequence, subList);
 							if(indexOfSubList != -1) {
 								if(longestSubSequence == null) {
@@ -411,7 +480,7 @@ public class UMLCommentListDiff {
 				for(int i=0; i<addedTokenSequence.size(); i++) {
 					for(int j=i+1; j<addedTokenSequence.size(); j++) {
 						List<String> subList = addedTokenSequence.subList(i,j+1);
-						if(subList.size() > 2) {
+						if(subList.size() > 2 || subListInQuotes(deletedTokenSequence, subList)) {
 							int indexOfSubList = Collections.indexOfSubList(deletedTokenSequence, subList);
 							if(indexOfSubList != -1) {
 								if(longestSubSequence == null) {
@@ -531,8 +600,18 @@ public class UMLCommentListDiff {
 				}
 			}
 		}
-		this.deletedComments.addAll(deletedComments);
-		this.addedComments.addAll(addedComments);
+	}
+
+	private boolean subListInQuotes(List<String> tokenSequence, List<String> subList) {
+		int indexOfSubList = Collections.indexOfSubList(tokenSequence, subList);
+		if(indexOfSubList != -1 && indexOfSubList > 0 && indexOfSubList + subList.size() < tokenSequence.size()) {
+			String previous = tokenSequence.get(indexOfSubList - 1);
+			String next = tokenSequence.get(indexOfSubList + subList.size());
+			if(previous.equals("\"") && next.equals("\"")) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private int nonPunctuationWords(List<String> longestSubSequence) {

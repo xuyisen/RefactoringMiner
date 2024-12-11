@@ -16,6 +16,7 @@ public class UMLClass extends UMLAbstractClass implements Comparable<UMLClass>, 
     private boolean isFinal;
     private boolean isStatic;
 	private boolean isAbstract;
+	private boolean isSealed;
 	private boolean isInterface;
 	private boolean isEnum;
 	private boolean isAnnotation;
@@ -109,6 +110,10 @@ public class UMLClass extends UMLAbstractClass implements Comparable<UMLClass>, 
     	typeParameters.add(typeParameter);
     }
 
+    public String getSourceFolder() {
+		return sourceFolder;
+	}
+
     public String getName() {
     	return this.qualifiedName;
     }
@@ -143,6 +148,14 @@ public class UMLClass extends UMLAbstractClass implements Comparable<UMLClass>, 
 
 	public void setStatic(boolean isStatic) {
 		this.isStatic = isStatic;
+	}
+
+	public boolean isSealed() {
+		return isSealed;
+	}
+
+	public void setSealed(boolean isSealed) {
+		this.isSealed = isSealed;
 	}
 
 	public boolean isEnum() {

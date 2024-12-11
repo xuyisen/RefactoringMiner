@@ -1,6 +1,7 @@
 package gr.uom.java.xmi;
 
 import static gr.uom.java.xmi.decomposition.Visitor.stringify;
+import static org.eclipse.jdt.core.JavaCore.VERSION_21;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -15,6 +16,7 @@ import java.util.regex.Pattern;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeNode;
 
+import com.github.gumtreediff.gen.jdt.AbstractJdtVisitor;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.compiler.IProblem;
@@ -61,17 +63,17 @@ import org.eclipse.jdt.core.dom.TypeParameter;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 
-import com.github.gumtreediff.gen.jdt.JdtVisitor;
 import com.github.gumtreediff.tree.TreeContext;
 
 import gr.uom.java.xmi.LocationInfo.CodeElementType;
 import gr.uom.java.xmi.decomposition.AbstractExpression;
 import gr.uom.java.xmi.decomposition.OperationBody;
 import gr.uom.java.xmi.decomposition.VariableDeclaration;
+import org.refactoringminer.astDiff.visitors.JdtVisitor;
 import org.refactoringminer.astDiff.visitors.JdtWithCommentsVisitor;
 
 public class UMLModelASTReader {
-	private static final boolean VISIT_JDT_COMMENTS = Boolean.parseBoolean(System.getProperty("rm.jdt.comments", "true"));
+	private boolean VISIT_JDT_COMMENTS = Boolean.parseBoolean(System.getProperty("rm.jdt.comments", "true"));
 	private static final String FREE_MARKER_GENERATED = "generated using freemarker";
 	private static final String FREE_MARKER_GENERATED_2 = "generated using FreeMarker";
 	private static final String ANTLR_GENERATED = "// $ANTLR";
@@ -136,7 +138,10 @@ public class UMLModelASTReader {
 				if(astDiff) {
 					IScanner scanner = ToolFactory.createScanner(true, false, false, false);
 					scanner.setSource(charArray);
-					JdtVisitor visitor = (VISIT_JDT_COMMENTS) ? new JdtWithCommentsVisitor(scanner) : new JdtVisitor(scanner);
+					AbstractJdtVisitor visitor = (VISIT_JDT_COMMENTS) ?
+							new JdtWithCommentsVisitor(scanner) :
+							new com.github.gumtreediff.gen.jdt.JdtVisitor(scanner);
+//					JdtVisitor visitor = new JdtWithCommentsVisitor(scanner);
 					compilationUnit.accept(visitor);
 					TreeContext treeContext = visitor.getTreeContext();
 					this.umlModel.getTreeContextMap().put(filePath, treeContext);
@@ -148,7 +153,7 @@ public class UMLModelASTReader {
 		}
 	}
 
-	private static CompilationUnit getCompilationUnit(String javaCoreVersion, ASTParser parser, char[] charArray) {
+	public static CompilationUnit getCompilationUnit(String javaCoreVersion, ASTParser parser, char[] charArray) {
 		Map<String, String> options = JavaCore.getOptions();
 		options.put(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, javaCoreVersion);
 		options.put(JavaCore.COMPILER_SOURCE, javaCoreVersion);
@@ -161,9 +166,10 @@ public class UMLModelASTReader {
 		return (CompilationUnit) parser.createAST(null);
 	}
 
-	private static String getMaxRecommendedVersionFromProblems(CompilationUnit compilationUnit) {
+	public static String getMaxRecommendedVersionFromProblems(CompilationUnit compilationUnit) {
 		IProblem[] problems = compilationUnit.getProblems();
 		String result = null;
+		if (problems.length == 0) return null;
 		for (IProblem problem : problems) {
 			String[] arguments = problem.getArguments();
 			if (arguments != null && arguments.length > 1) {
@@ -177,6 +183,7 @@ public class UMLModelASTReader {
 				}
 			}
 		}
+		if (result == null) return VERSION_21;
 		return result;
 	}
 
@@ -370,7 +377,7 @@ public class UMLModelASTReader {
 			umlClass.setPackageDeclaration(umlPackage);
 			umlClass.setPackageDeclarationJavadoc(packageDoc);
 			for(UMLComment comment : comments) {
-				if(comment.getLocationInfo().before(locationInfo)) {
+				if(comment.getLocationInfo().before(locationInfo) && !locationInfo.nextLine(comment.getLocationInfo())) {
 					umlClass.getPackageDeclarationComments().add(comment);
 				}
 			}
@@ -470,7 +477,7 @@ public class UMLModelASTReader {
 			umlClass.setPackageDeclaration(umlPackage);
 			umlClass.setPackageDeclarationJavadoc(packageDoc);
 			for(UMLComment comment : comments) {
-				if(comment.getLocationInfo().before(locationInfo)) {
+				if(comment.getLocationInfo().before(locationInfo) && !locationInfo.nextLine(comment.getLocationInfo())) {
 					umlClass.getPackageDeclarationComments().add(comment);
 				}
 			}
@@ -527,7 +534,7 @@ public class UMLModelASTReader {
 			umlClass.setPackageDeclaration(umlPackage);
 			umlClass.setPackageDeclarationJavadoc(packageDoc);
 			for(UMLComment comment : comments) {
-				if(comment.getLocationInfo().before(locationInfo)) {
+				if(comment.getLocationInfo().before(locationInfo) && !locationInfo.nextLine(comment.getLocationInfo())) {
 					umlClass.getPackageDeclarationComments().add(comment);
 				}
 			}
@@ -655,7 +662,7 @@ public class UMLModelASTReader {
 			umlClass.setPackageDeclaration(umlPackage);
 			umlClass.setPackageDeclarationJavadoc(packageDoc);
 			for(UMLComment comment : comments) {
-				if(comment.getLocationInfo().before(locationInfo)) {
+				if(comment.getLocationInfo().before(locationInfo) && !locationInfo.nextLine(comment.getLocationInfo())) {
 					umlClass.getPackageDeclarationComments().add(comment);
 				}
 			}
@@ -701,6 +708,12 @@ public class UMLModelASTReader {
     		UMLRealization umlRealization = new UMLRealization(umlClass, umlType.getClassType());
     		umlClass.addImplementedInterface(umlType);
     		getUmlModel().addRealization(umlRealization);
+    	}
+    	
+    	List<Type> permittedTypes = typeDeclaration.permittedTypes();
+    	for(Type type : permittedTypes) {
+    		UMLType umlType = UMLType.extractTypeObject(cu, sourceFolder, sourceFile, type, 0, javaFileContent);
+    		umlClass.addPermittedType(umlType);
     	}
     	
     	Map<BodyDeclaration, VariableDeclarationContainer> map = processBodyDeclarations(cu, typeDeclaration, umlPackage, packageName, sourceFolder, sourceFile, importedTypes, umlClass, packageDoc, comments, javaFileContent);
@@ -752,6 +765,16 @@ public class UMLModelASTReader {
     		String methodNamePath = getMethodNamePath(statement);
     		String fullName = packageName + "." + className + "." + methodNamePath;
     		AbstractTypeDeclaration localTypeDeclaration = statement.getDeclaration();
+    		LocationInfo location = generateLocationInfo(cu, sourceFolder, sourceFile, localTypeDeclaration, CodeElementType.TYPE_DECLARATION);
+    		for(UMLOperation operation : umlClass.getOperations()) {
+    			if(operation.getLocationInfo().subsumes(location)) {
+    				for(UMLComment comment : operation.getComments()) {
+    					if(location.subsumes(comment.getLocationInfo())) {
+    						allComments.add(comment);
+    					}
+    				}
+    			}
+    		}
 			if(localTypeDeclaration instanceof TypeDeclaration) {
         		TypeDeclaration typeDeclaration2 = (TypeDeclaration)localTypeDeclaration;
         		processTypeDeclaration(cu, typeDeclaration2, umlPackage, fullName, sourceFolder, sourceFile, importedTypes, packageDoc, allComments, javaFileContent);
@@ -937,6 +960,8 @@ public class UMLModelASTReader {
     		umlClass.setStatic(true);
     	if((modifiers & Modifier.FINAL) != 0)
     		umlClass.setFinal(true);
+    	if((modifiers & Modifier.SEALED) != 0)
+    		umlClass.setSealed(true);
     	
     	if((modifiers & Modifier.PUBLIC) != 0)
     		umlClass.setVisibility(Visibility.PUBLIC);

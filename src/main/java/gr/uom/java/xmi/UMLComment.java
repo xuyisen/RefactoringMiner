@@ -5,6 +5,9 @@ import java.util.Scanner;
 
 import gr.uom.java.xmi.LocationInfo.CodeElementType;
 import gr.uom.java.xmi.decomposition.CompositeStatementObject;
+import gr.uom.java.xmi.decomposition.TryStatementObject;
+
+import static gr.uom.java.xmi.Constants.JAVA;
 
 public class UMLComment extends UMLAbstractDocumentation {
 
@@ -80,5 +83,31 @@ public class UMLComment extends UMLAbstractDocumentation {
 		sb.append(": ");
 		sb.append(text);
 		return sb.toString();
+	}
+
+	public boolean isCommentedCode() {
+		if(locationInfo.getCodeElementType().equals(CodeElementType.LINE_COMMENT)) {
+			String text = getText();
+			if(text.equals(JAVA.OPEN_BLOCK) || text.equals(JAVA.CLOSE_BLOCK) || text.equals(JAVA.BREAK_STATEMENT) ||
+					text.equals(JAVA.CONTINUE_STATEMENT) || text.equals(JAVA.RETURN_STATEMENT) ||
+					text.equals(JAVA.RETURN_TRUE) || text.equals(JAVA.RETURN_FALSE) || text.equals(JAVA.RETURN_NULL))
+				return true;
+		}
+		return false;
+	}
+
+	public boolean nestedInCatchBlock() {
+		if(parent != null && parent.getLocationInfo().getCodeElementType().equals(CodeElementType.TRY_STATEMENT)) {
+			TryStatementObject tryParent = (TryStatementObject)parent;
+			for(CompositeStatementObject catchClause : tryParent.getCatchClauses()) {
+				if(catchClause.getLocationInfo().subsumes(this.getLocationInfo()))
+					return true;
+			}
+			if(tryParent.getFinallyClause() != null) {
+				if(tryParent.getFinallyClause().getLocationInfo().subsumes(this.getLocationInfo()))
+					return true;
+			}
+		}
+		return false;
 	}
 }

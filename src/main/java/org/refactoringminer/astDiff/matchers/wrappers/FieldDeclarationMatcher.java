@@ -5,6 +5,7 @@ import gr.uom.java.xmi.UMLAttribute;
 import gr.uom.java.xmi.UMLEnumConstant;
 import gr.uom.java.xmi.diff.UMLCommentListDiff;
 import gr.uom.java.xmi.diff.UMLJavadocDiff;
+import org.apache.commons.lang3.tuple.Pair;
 import org.refactoringminer.astDiff.models.OptimizationData;
 import org.refactoringminer.astDiff.utils.Constants;
 import org.refactoringminer.astDiff.models.ExtendedMultiMappingStore;
@@ -63,7 +64,7 @@ public class FieldDeclarationMatcher extends OptimizationAwareMatcher implements
             dstFieldDeclaration = TreeUtilFunctions.getParentUntilType(dstAttr, Constants.RECORD_COMPONENT);
         }
         //				|| srcFieldDeclaration.isIsoStructuralTo(dstFieldDeclaration))
-        new CommentMatcher(umlCommentListDiff).match(srcTree, dstTree, mappingStore);
+        new CommentMatcher(optimizationData, umlCommentListDiff).match(srcTree, dstTree, mappingStore);
         if (srcFieldDeclaration != null && dstFieldDeclaration != null && srcFieldDeclaration.getMetrics().hash == dstFieldDeclaration.getMetrics().hash) {
             //IsoStructural can't be a good idea here, i.e. anonymous class
             mappingStore.addMappingRecursively(srcFieldDeclaration, dstFieldDeclaration);
@@ -113,9 +114,16 @@ public class FieldDeclarationMatcher extends OptimizationAwareMatcher implements
     }
 
     private void matchFieldAnnotations(Tree srcFieldDeclaration, Tree dstFieldDeclaration, ExtendedMultiMappingStore mappingStore) {
-        Tree srcField = TreeUtilFunctions.findFirstByType(srcFieldDeclaration, Constants.MARKER_ANNOTATION);
-        Tree dstField = TreeUtilFunctions.findFirstByType(dstFieldDeclaration, Constants.MARKER_ANNOTATION);
-        new LeafMatcher().match(srcField, dstField, mappingStore);
+        //TODO: add test for all the annotations
+        Pair<Tree, Tree> srcAndDst = TreeUtilFunctions.populateLeftAndRightBasedOnTheFirstChildOfType(
+                srcFieldDeclaration, dstFieldDeclaration,
+                new String[]{
+                        Constants.MARKER_ANNOTATION,
+                        Constants.SINGLE_MEMBER_ANNOTATION,
+                        Constants.NORMAL_ANNOTATION,
+                }
+        );
+        new LeafMatcher().match(srcAndDst.getLeft(), srcAndDst.getRight(), mappingStore);
     }
 
     private void matchModifiersForField(Tree srcFieldDeclaration, Tree dstFieldDeclaration, String srcModifier, String dstModifier, ExtendedMultiMappingStore mappingStore) {

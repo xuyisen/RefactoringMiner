@@ -18,8 +18,7 @@ import org.refactoringminer.astDiff.utils.TreeUtilFunctions;
 
 import java.util.Optional;
 
-import static org.refactoringminer.astDiff.utils.TreeUtilFunctions.areBothFromThisType;
-import static org.refactoringminer.astDiff.utils.TreeUtilFunctions.isFromType;
+import static org.refactoringminer.astDiff.utils.TreeUtilFunctions.*;
 
 /* Created by pourya on 2024-05-22*/
 public class JavaDocMatcher extends OptimizationAwareMatcher implements TreeMatcher {
@@ -82,18 +81,35 @@ public class JavaDocMatcher extends OptimizationAwareMatcher implements TreeMatc
             if (umlJavadocDiff.isEmpty()) return;
             mappingStore.addMapping(srcJavaDocNode,dstJavaDocNode); // Match the entire javadoc subtree node (parent)
             UMLJavadocDiff diff = umlJavadocDiff.get();
-            if(diff.getCommonTags().size() > 0 || diff.getCommonDocElements().size() > 0 || srcUMLJavaDoc.isEmpty() || dstUMLJavaDoc.isEmpty()) {
+            if(!diff.getCommonTags().isEmpty() || !diff.getCommonDocElements().isEmpty() || srcUMLJavaDoc.isEmpty() || dstUMLJavaDoc.isEmpty()) {
                 MappingStore gtSimpleMappings = new CompositeMatchers.SimpleGumtree().match(srcJavaDocNode, dstJavaDocNode);
                 mappingStore.add(gtSimpleMappings);
             	for (Pair<UMLTagElement, UMLTagElement> pair : diff.getCommonTags()) {
                     Tree srcTag = TreeUtilFunctions.findByLocationInfo(srcTree,pair.getLeft().getLocationInfo());
                     Tree dstTag = TreeUtilFunctions.findByLocationInfo(dstTree,pair.getRight().getLocationInfo());
                     if (srcTag != null && dstTag != null) {
-                        if (!mappingStore.isSrcMapped(srcTag) || !mappingStore.isDstMapped(dstTag) || diff.isManyToManyReformat()) {
+//                        if (!mappingStore.isSrcMapped(srcTag) || !mappingStore.isDstMapped(dstTag) || diff.isManyToManyReformat())
+                        {
                             if (srcTag.isIsoStructuralTo(dstTag))
                                 optimizationData.getSubtreeMappings().addMappingRecursively(srcTag,dstTag);
-                            else
-                                optimizationData.getSubtreeMappings().addMapping(srcTag,dstTag);
+                            else {
+                                optimizationData.getSubtreeMappings().addMapping(srcTag, dstTag);
+                                Tree srcTagName = findFirstByType(srcTag, Constants.TAG_NAME);
+                                Tree dstTagName = findFirstByType(dstTag, Constants.TAG_NAME);
+                                if (srcTagName != null && dstTagName != null) {
+                                    if (srcTagName.isIsoStructuralTo(dstTagName))
+                                        optimizationData.getSubtreeMappings().addMapping(srcTagName, dstTagName);
+                                }
+                                else if (diff.getCommonTags().size() == 1)  {
+                                    Tree srcTxtElement = findFirstByType(srcTag, Constants.TEXT_ELEMENT);
+                                    Tree dstTextElement = findFirstByType(dstTag, Constants.TEXT_ELEMENT);
+                                    if (srcTxtElement != null && dstTextElement != null) {
+                                        if (srcTxtElement.isIsoStructuralTo(dstTextElement))
+                                            optimizationData.getSubtreeMappings().addMapping(srcTxtElement, dstTextElement);
+                                    }
+                                }
+
+                            }
                         }
                     }
                 }

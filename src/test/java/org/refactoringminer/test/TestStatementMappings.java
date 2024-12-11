@@ -43,6 +43,36 @@ public class TestStatementMappings {
 	private static final String EXPECTED_PATH = System.getProperty("user.dir") + "/src/test/resources/mappings/";
 
 	@Test
+	public void testMultipleInlinedMethodsToTheSameMethodStatementMappings() throws Exception {
+		GitHistoryRefactoringMinerImpl miner = new GitHistoryRefactoringMinerImpl();
+		final List<String> actual = new ArrayList<>();
+		miner.detectAtCommitWithGitHubAPI("https://github.com/square/okhttp.git", "a55e0090c999d155e4e588a34d9792a510ad8c68", new File(REPOS), new RefactoringHandler() {
+			@Override
+			public void handle(String commitId, List<Refactoring> refactorings) {
+				List<UMLOperationBodyMapper> parentMappers = new ArrayList<>();
+				for (Refactoring ref : refactorings) {
+					if(ref instanceof InlineOperationRefactoring) {
+						InlineOperationRefactoring ex = (InlineOperationRefactoring)ref;
+						UMLOperationBodyMapper bodyMapper = ex.getBodyMapper();
+						if(!bodyMapper.isNested()) {
+							if(!parentMappers.contains(bodyMapper.getParentMapper())) {
+								parentMappers.add(bodyMapper.getParentMapper());
+							}
+						}
+						mapperInfo(bodyMapper, actual);
+					}
+				}
+				for(UMLOperationBodyMapper parentMapper : parentMappers) {
+					mapperInfo(parentMapper, actual);
+				}
+			}
+		});
+		
+		List<String> expected = IOUtils.readLines(new FileReader(EXPECTED_PATH + "okhttp-a55e0090c999d155e4e588a34d9792a510ad8c68.txt"));
+		Assertions.assertTrue(expected.size() == actual.size() && expected.containsAll(actual) && actual.containsAll(expected));
+	}
+
+	@Test
 	public void testNestedInlineMethodStatementMappings() throws Exception {
 		GitHistoryRefactoringMinerImpl miner = new GitHistoryRefactoringMinerImpl();
 		final List<String> actual = new ArrayList<>();
@@ -537,7 +567,8 @@ public class TestStatementMappings {
 		"https://github.com/tsantalis/RefactoringMiner.git, 0894f346564f8b31cf836def67e952fb93a6036d, miner-0894f346564f8b31cf836def67e952fb93a6036d.txt",
 		"https://github.com/eclipse-jgit/jgit.git, 7ff6eb584cf8b83f83a3b5edf897feb53dbf42c0, jgit-7ff6eb584cf8b83f83a3b5edf897feb53dbf42c0.txt",
 		"https://github.com/jenkinsci/git-client-plugin.git, 6d261108e7471db380146f945bb228b5fc8c44cc, git-client-plugin-6d261108e7471db380146f945bb228b5fc8c44cc.txt",
-		"https://github.com/javaparser/javaparser.git, 548fb9c5a72776ec009c5f2f92b1a4c480a05030, javaparser-548fb9c5a72776ec009c5f2f92b1a4c480a05030.txt"
+		"https://github.com/javaparser/javaparser.git, 548fb9c5a72776ec009c5f2f92b1a4c480a05030, javaparser-548fb9c5a72776ec009c5f2f92b1a4c480a05030.txt",
+		"https://github.com/apache/ant.git, 52926715b4f4f53da4b63cf660a14f357d7a9b6e, ant-52926715b4f4f53da4b63cf660a14f357d7a9b6e.txt"
 	})
 	public void testExtractMethodStatementMappings(String url, String commit, String testResultFileName) throws Exception {
 		GitHistoryRefactoringMinerImpl miner = new GitHistoryRefactoringMinerImpl();
@@ -547,7 +578,7 @@ public class TestStatementMappings {
 			public void handle(String commitId, List<Refactoring> refactorings) {
 				List<UMLOperationBodyMapper> parentMappers = new ArrayList<>();
 				for (Refactoring ref : refactorings) {
-					if(ref instanceof ExtractOperationRefactoring) {
+					if(ref instanceof ExtractOperationRefactoring && ref.getRefactoringType().equals(RefactoringType.EXTRACT_OPERATION)) {
 						ExtractOperationRefactoring ex = (ExtractOperationRefactoring)ref;
 						UMLOperationBodyMapper bodyMapper = ex.getBodyMapper();
 						if(!bodyMapper.isNested()) {
@@ -1108,7 +1139,8 @@ public class TestStatementMappings {
 		"https://github.com/javaparser/javaparser.git, de5c17c37f15a1c134f518ed2754974cc4b9aa15, apply, true, javaparser-de5c17c37f15a1c134f518ed2754974cc4b9aa15.txt",
 		"https://github.com/hibernate/hibernate-orm.git, 8577a68e69d30d9e671024bf3330616000a3ec54, processElementAnnotations, true, hibernate-orm-8577a68e69d30d9e671024bf3330616000a3ec54.txt",
 		"https://github.com/checkstyle/checkstyle.git, bf69cf167c9432daabc7b6e4a426fff33650a057, visitToken, true, checkstyle-bf69cf167c9432daabc7b6e4a426fff33650a057.txt",
-		"https://github.com/hibernate/hibernate-orm.git, 016a02ff506b715e8217b8577594ac62b3f318ce, processElementAnnotations, true, hibernate-orm-016a02ff506b715e8217b8577594ac62b3f318ce.txt"
+		"https://github.com/hibernate/hibernate-orm.git, 016a02ff506b715e8217b8577594ac62b3f318ce, processElementAnnotations, true, hibernate-orm-016a02ff506b715e8217b8577594ac62b3f318ce.txt",
+		"https://github.com/javaparser/javaparser.git, acdac6790f4424f8097b3aa6c888e825cac485f9, inferTypes, true, javaparser-acdac6790f4424f8097b3aa6c888e825cac485f9.txt"
 	})
 	public void testRestructuredStatementMappings(String url, String commitId, String containerName, boolean breakOnFirstMatch, String testResultFileName) throws Exception {
 		GitHistoryRefactoringMinerImpl miner = new GitHistoryRefactoringMinerImpl();
@@ -1768,10 +1800,38 @@ public class TestStatementMappings {
 				if(mapper.getContainer1().getName().equals("convertsTagFilterOption") && mapper.getContainer2().getName().equals("convertsTagFilterOption")) {
 					mapperInfo(mapper, actual);
 				}
-				//TODO add junit-console/src/main/java/org/junit/gen5/console/tasks/DiscoveryRequestCreator.java applyFilters()
+				if(mapper.getContainer1().getName().equals("applyFilters") && mapper.getContainer2().getName().equals("applyFilters")) {
+					mapperInfo(mapper, actual);
+				}
 			}
 		}
 		List<String> expected = IOUtils.readLines(new FileReader(EXPECTED_PATH + "junit5-48dd35c9002c80eeb666f56489785d1bf47f9aa4.txt"));
+		Assertions.assertTrue(expected.size() == actual.size() && expected.containsAll(actual) && actual.containsAll(expected));
+	}
+
+	@Test
+	public void testDoNotConsiderAsExtractedMethod() throws Exception {
+		final List<String> actual = new ArrayList<>();
+		Map<String, String> fileContentsBefore = new LinkedHashMap<String, String>();
+		Map<String, String> fileContentsCurrent = new LinkedHashMap<String, String>();
+		String contentsV1 = FileUtils.readFileToString(new File(EXPECTED_PATH + "FifoScheduler-v1.txt"));
+		String contentsV2 = FileUtils.readFileToString(new File(EXPECTED_PATH + "FifoScheduler-v2.txt"));
+		fileContentsBefore.put("src/main/java/org/apache/hadoop/yarn/server/resourcemanager/scheduler/fifo/FifoScheduler.java", contentsV1);
+		fileContentsCurrent.put("src/main/java/org/apache/hadoop/yarn/server/resourcemanager/scheduler/fifo/FifoScheduler.java", contentsV2);
+		UMLModel parentUMLModel = GitHistoryRefactoringMinerImpl.createModel(fileContentsBefore, new LinkedHashSet<String>());
+		UMLModel currentUMLModel = GitHistoryRefactoringMinerImpl.createModel(fileContentsCurrent, new LinkedHashSet<String>());
+		
+		UMLModelDiff modelDiff = parentUMLModel.diff(currentUMLModel);
+		List<UMLClassDiff> commonClassDiff = modelDiff.getCommonClassDiffList();
+		for(UMLClassDiff classDiff : commonClassDiff) {
+			for(UMLOperationBodyMapper mapper : classDiff.getOperationBodyMapperList()) {
+				if(mapper.getContainer1().getName().equals("completedContainer") && mapper.getContainer2().getName().equals("completedContainerInternal")) {
+					mapperInfo(mapper, actual);
+					break;
+				}
+			}
+		}
+		List<String> expected = IOUtils.readLines(new FileReader(EXPECTED_PATH + "hadoop-FifoScheduler.txt"));
 		Assertions.assertTrue(expected.size() == actual.size() && expected.containsAll(actual) && actual.containsAll(expected));
 	}
 

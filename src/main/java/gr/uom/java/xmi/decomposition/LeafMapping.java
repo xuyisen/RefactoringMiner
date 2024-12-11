@@ -31,6 +31,7 @@ public class LeafMapping extends AbstractCodeMapping implements Comparable<LeafM
 	private boolean equalNumberOfAssertions;
 	private boolean ifParentWithIdenticalElse;
 	private boolean ifParentWithIdenticalThen;
+	private boolean isKeyword;
 
 	public LeafMapping(AbstractCodeFragment statement1, AbstractCodeFragment statement2,
 			VariableDeclarationContainer operation1, VariableDeclarationContainer operation2) {
@@ -61,6 +62,9 @@ public class LeafMapping extends AbstractCodeMapping implements Comparable<LeafM
 					ifParentWithIdenticalElse = true;
 				}
 			}
+		}
+		if(statement1.isKeyword()) {
+			isKeyword = true;
 		}
 	}
 
@@ -384,10 +388,18 @@ public class LeafMapping extends AbstractCodeMapping implements Comparable<LeafM
 				boolean zeroDistanceWithMoreThanTwoParents1 = nLevelParentEditDistance1 == 0 && levelParentEditDistance1.size() > 2;
 				boolean zeroDistanceWithMoreThanTwoParents2 = nLevelParentEditDistance2 == 0 && levelParentEditDistance2.size() > 2;
 				if(identicalCompositeChildren1 && !identicalCompositeChildren2 && !zeroDistanceWithMoreThanTwoParents2) {
-					return -1;
+					boolean skip = false;
+					if(nLevelParentEditDistance2 == 0 && this.isKeyword)
+						skip = true;
+					if(!skip)
+						return -1;
 				}
 				else if(!identicalCompositeChildren1 && identicalCompositeChildren2 && !zeroDistanceWithMoreThanTwoParents1) {
-					return 1;
+					boolean skip = false;
+					if(nLevelParentEditDistance1 == 0 && o.isKeyword)
+						skip = true;
+					if(!skip)
+						return 1;
 				}
 				if(identicalCompositeChildren1 && identicalCompositeChildren2 && levelParentEditDistance1.size() > 2 && levelParentEditDistance2.size() > 2
 						&& nLevelParentEditDistance1 > 0 && nLevelParentEditDistance2 > 0) {
@@ -1064,13 +1076,13 @@ public class LeafMapping extends AbstractCodeMapping implements Comparable<LeafM
 		List<LeafExpression> variables2 = parent2.getVariables();
 		Set<String> lowerCaseVariables1 = new LinkedHashSet<>();
 		for(LeafExpression variable1 : variables1) {
-			if(Character.isLowerCase(variable1.getString().charAt(0))) {
+			if(variable1.getString().length() > 0 && Character.isLowerCase(variable1.getString().charAt(0))) {
 				lowerCaseVariables1.add(variable1.getString());
 			}
 		}
 		Set<String> lowerCaseVariables2 = new LinkedHashSet<>();
 		for(LeafExpression variable2 : variables2) {
-			if(Character.isLowerCase(variable2.getString().charAt(0))) {
+			if(variable2.getString().length() > 0 && Character.isLowerCase(variable2.getString().charAt(0))) {
 				lowerCaseVariables2.add(variable2.getString());
 			}
 		}

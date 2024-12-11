@@ -42,6 +42,7 @@ public class Constants {
 	public static final String NATIVE = "native";
 	public static final String FINAL = "final";
 	public static final String STATIC = "static";
+	public static final String SEALED = "sealed";
 	public static final String DEFAULT = "default";
 	public static final String EQUAL_OPERATOR = "=";
 
@@ -73,14 +74,16 @@ public class Constants {
 	public static final String NUMBER_LITERAL = "NumberLiteral";
 	public static final String BOOLEAN_LITERAL = "BooleanLiteral";
 
-	public static final String SINGLE_MEMBER_ANNOTATION = "SingleMemberAnnotation";
-	public static final String MARKER_ANNOTATION = "MarkerAnnotation";
+	public static final String SINGLE_MEMBER_ANNOTATION = "SingleMemberAnnotation"; //@type(Expression), for instance
+	public static final String MARKER_ANNOTATION = "MarkerAnnotation"; //@Deprecated for instance
+	public static final String NORMAL_ANNOTATION = "NormalAnnotation"; //@Author("John Doe", "") for instance
 
 	public static final String COMPILATION_UNIT = "CompilationUnit";
 
 	public static final String JAVA_DOC = "Javadoc";
 	public static final String TEXT_ELEMENT = "TextElement";
 	public static final String TAG_ELEMENT = "TagElement";
+	public static final String TAG_NAME = "TAG_NAME";
 
 	public static final String SIMPLE_TYPE = "SimpleType";
 	public static final String EXPRESSION_METHOD_REFERENCE = "ExpressionMethodReference";
@@ -91,4 +94,5 @@ public class Constants {
 
 	public static final String LINE_COMMENT = "LineComment";
 	public static final String BLOCK_COMMENT = "BlockComment";
+
 }
