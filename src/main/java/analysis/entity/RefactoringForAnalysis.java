@@ -28,6 +28,16 @@ public class RefactoringForAnalysis {
     private List<PurityCheckResult> purityCheckResultList;
     private String sourceCodeBeforeForWhole;
 
+    public String getFilePathAfter() {
+        return filePathAfter;
+    }
+
+    public void setFilePathAfter(String filePathAfter) {
+        this.filePathAfter = filePathAfter;
+    }
+
+    private String filePathAfter;
+
     public String getSourceCodeAfterForWhole() {
         return sourceCodeAfterForWhole;
     }

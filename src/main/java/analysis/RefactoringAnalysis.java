@@ -29,7 +29,7 @@ public class RefactoringAnalysis {
             switch(refactoring.getRefactoringType()){
                 case EXTRACT_OPERATION:
                 case EXTRACT_AND_MOVE_OPERATION:
-                    getMethodExtraction(commitId, refactoring, refactorings, modelDiff, fileContentsBefore, fileContentsCurrent, filePathToRefactoring, commitFileLineUniqueIds);
+                    getMethodExtraction(commitId, refactoring, refactorings, modelDiff, fileContentsBefore, fileContentsCurrent, filePathToRefactoring, commitFileLineUniqueIds, refactoringsForAnalysis);
                     break;
                 case MOVE_OPERATION:
                 case MOVE_AND_RENAME_OPERATION:
@@ -71,6 +71,7 @@ public class RefactoringAnalysis {
             String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
             RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
             refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
+            refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
             refactoringForAnalysisOutput.setType(moveRefactoring.getName());
             refactoringForAnalysisOutput.setUniqueId(uniqueId);
             refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBefore);
@@ -108,12 +109,12 @@ public class RefactoringAnalysis {
             String sourceCodeBefore = getSourceCodeByLocationInfo(locationInfoBefore, filePathBefore, fileContentsBefore);
             String sourceCodeAfter = getSourceCodeByLocationInfo(locationInfoAfter, filePathAfter, fileContentsCurrent);
             String uniqueId = commitId + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine() + "_" + "_" + locationInfoAfter.getStartLine() + "_" + locationInfoAfter.getEndLine() + "_" + inlineOperationLocationInfo.getStartLine() + "_" + inlineOperationLocationInfo.getEndLine();
-            String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
             RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
             refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
+            refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
             refactoringForAnalysisOutput.setType(inlineOperationRefactoring.getName());
             refactoringForAnalysisOutput.setUniqueId(uniqueId);
-            refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBeforeInline + "\n" + sourceCodeBefore);
+            refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBeforeInline);
             refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(sourceCodeAfter);
             refactoringForAnalysisOutput.setSourceCodeBeforeForWhole(sourceCodeBeforeForWhole);
             refactoringForAnalysisOutput.setSourceCodeAfterForWhole(sourceCodeAfterForWhole);
@@ -126,6 +127,12 @@ public class RefactoringAnalysis {
             refactoringForAnalysisOutput.setDescription(refactoring.toString());
             String methodName = className + "#" + inlineOperationRefactoring.getInlinedOperation().getName();
             setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, inlineOperationRefactoring.getInlinedOperation().getBody());
+            String movedMethodName = className + "#" + inlineOperationRefactoring.getTargetOperationBeforeInline().getName();
+            refactoringForAnalysisOutput.setMethodNameBefore(methodName + "\n" + movedMethodName);
+            Set<String> methodNameSet = new HashSet<>();
+            methodNameSet.add(methodName);
+            methodNameSet.add(movedMethodName);
+            refactoringForAnalysisOutput.setMethodNameBeforeSet(methodNameSet);
             handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
             handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, inlineOperationLocationInfo, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
 //				filePathToRefactoring.put(filePathBefore, refactoringForAnalysisOutput);
@@ -150,6 +157,7 @@ public class RefactoringAnalysis {
             String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
             RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
             refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
+            refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
             refactoringForAnalysisOutput.setType(pushDownOperationRefactoring.getName());
             refactoringForAnalysisOutput.setUniqueId(uniqueId);
             refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBefore);
@@ -188,6 +196,7 @@ public class RefactoringAnalysis {
             String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
             RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
             refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
+            refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
             refactoringForAnalysisOutput.setType(pullUpOperationRefactoring.getName());
             refactoringForAnalysisOutput.setUniqueId(uniqueId);
             refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBefore);
@@ -231,7 +240,7 @@ public class RefactoringAnalysis {
         return refactoring instanceof PullUpOperationRefactoring pullUpOperationRefactoring && StringUtils.equalsIgnoreCase(pullUpOperationRefactoring.getName(), "Pull Up Method");
     }
 
-    private static void getMethodExtraction(String commitId, Refactoring refactoring, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent, Map<String, RefactoringForAnalysis> filePathToRefactoring, Set<String> commitFileLineUniqueIds) {
+    private static void getMethodExtraction(String commitId, Refactoring refactoring, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent, Map<String, RefactoringForAnalysis> filePathToRefactoring, Set<String> commitFileLineUniqueIds, List<RefactoringForAnalysis> refactoringsForAnalysis) {
         if (isMethodExtractionOrMoveExtraction(refactoring)) {
             ExtractOperationRefactoring extractOperationRefactoring = (ExtractOperationRefactoring) refactoring;
             LocationInfo locationInfoBefore = extractOperationRefactoring.getSourceOperationBeforeExtraction().getLocationInfo();
@@ -245,50 +254,52 @@ public class RefactoringAnalysis {
             String sourceCodeAfter = getSourceCodeByLocationInfo(locationInfoAfter, filePathAfter, fileContentsCurrent);
             String extractedCode = getSourceCodeByLocationInfo(locationInfoExtracted, filePathAfter, fileContentsCurrent);
             String uniqueId = commitId + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine() + "_" + locationInfoExtracted.getStartLine() + "_" + locationInfoExtracted.getEndLine() + "_" + locationInfoAfter.getStartLine() + "_" + locationInfoAfter.getEndLine();
-            String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
-            if (filePathToRefactoring.containsKey(filePathBefore)) {
-                RefactoringForAnalysis refactoringForAnalysisOutput = filePathToRefactoring.get(filePathBefore);
-                if (!commitFileLineUniqueIds.contains(commitFileLineUniqueId)) {
-                    commitFileLineUniqueIds.add(commitFileLineUniqueId);
-                    refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(refactoringForAnalysisOutput.getSourceCodeBeforeRefactoring() + "\n" + sourceCodeBefore);
-                    Set<String> diffSourceCodeSet = refactoringForAnalysisOutput.getDiffSourceCodeSet();
-                    if(!diffSourceCodeSet.contains(extractedCode)){
-                        refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(refactoringForAnalysisOutput.getSourceCodeAfterRefactoring() + "\n" + sourceCodeAfter + '\n' + extractedCode);
-                    }else{
-                        diffSourceCodeSet.add(extractedCode);
-                        refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(refactoringForAnalysisOutput.getSourceCodeAfterRefactoring() + "\n" + sourceCodeAfter);
-                    }
-                    String className = extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName();
-                    refactoringForAnalysisOutput.setDiffSourceCodeSet(diffSourceCodeSet);
-                    refactoringForAnalysisOutput.setUniqueId(refactoringForAnalysisOutput.getUniqueId());
-                    String methodName = className + "#" + extractOperationRefactoring.getSourceOperationBeforeExtraction().getName();
-                    setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, extractOperationRefactoring.getSourceOperationBeforeExtraction().getBody());
-                    handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, locationInfoExtracted, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
-                    handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
-                }
-            } else {
-                RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
-                refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
-                refactoringForAnalysisOutput.setType(extractOperationRefactoring.getName());
-                refactoringForAnalysisOutput.setUniqueId(uniqueId);
-                refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBefore);
-                refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(sourceCodeAfter + '\n' + extractedCode);
-                refactoringForAnalysisOutput.setSourceCodeBeforeForWhole(sourceCodeBeforeForWhole);
-                refactoringForAnalysisOutput.setSourceCodeAfterForWhole(sourceCodeAfterForWhole);
-                String className = extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName();
-                refactoringForAnalysisOutput.setCommitId(commitId);
-                refactoringForAnalysisOutput.setClassNameBefore(extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName());
-                refactoringForAnalysisOutput.setPackageNameBefore(className.substring(0, className.lastIndexOf('.')));
-                refactoringForAnalysisOutput.setDiffSourceCodeSet(new HashSet<>(Collections.singletonList(extractedCode)));
-                refactoringForAnalysisOutput.setInvokedMethodSet(new HashSet<>());
-                refactoringForAnalysisOutput.setDescription(refactoring.toString());
-                String methodName = className + "#" + extractOperationRefactoring.getSourceOperationBeforeExtraction().getName();
-                setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, extractOperationRefactoring.getSourceOperationBeforeExtraction().getBody());
-                handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
-                handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, locationInfoExtracted, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
-                filePathToRefactoring.put(filePathBefore, refactoringForAnalysisOutput);
-                commitFileLineUniqueIds.add(commitFileLineUniqueId);
-            }
+//            String commitFileLineUniqueId = commitId + "_" + filePathBefore + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine();
+//            if (filePathToRefactoring.containsKey(filePathBefore)) {
+//                RefactoringForAnalysis refactoringForAnalysisOutput = filePathToRefactoring.get(filePathBefore);
+//                if (!commitFileLineUniqueIds.contains(commitFileLineUniqueId)) {
+//                    commitFileLineUniqueIds.add(commitFileLineUniqueId);
+//                    refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(refactoringForAnalysisOutput.getSourceCodeBeforeRefactoring() + "\n" + sourceCodeBefore);
+//                    Set<String> diffSourceCodeSet = refactoringForAnalysisOutput.getDiffSourceCodeSet();
+//                    if(!diffSourceCodeSet.contains(extractedCode)){
+//                        refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(refactoringForAnalysisOutput.getSourceCodeAfterRefactoring() + "\n" + sourceCodeAfter + '\n' + extractedCode);
+//                    }else{
+//                        diffSourceCodeSet.add(extractedCode);
+//                        refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(refactoringForAnalysisOutput.getSourceCodeAfterRefactoring() + "\n" + sourceCodeAfter);
+//                    }
+//                    String className = extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName();
+//                    refactoringForAnalysisOutput.setDiffSourceCodeSet(diffSourceCodeSet);
+//                    refactoringForAnalysisOutput.setUniqueId(refactoringForAnalysisOutput.getUniqueId());
+//                    String methodName = className + "#" + extractOperationRefactoring.getSourceOperationBeforeExtraction().getName();
+//                    setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, extractOperationRefactoring.getSourceOperationBeforeExtraction().getBody());
+//                    handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, locationInfoExtracted, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
+//                    handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
+//                }
+//            } else {
+            RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
+            refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
+            refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
+            refactoringForAnalysisOutput.setType(extractOperationRefactoring.getName());
+            refactoringForAnalysisOutput.setUniqueId(uniqueId);
+            refactoringForAnalysisOutput.setSourceCodeBeforeRefactoring(sourceCodeBefore);
+            refactoringForAnalysisOutput.setSourceCodeAfterRefactoring(sourceCodeAfter + '\n' + extractedCode);
+            refactoringForAnalysisOutput.setSourceCodeBeforeForWhole(sourceCodeBeforeForWhole);
+            refactoringForAnalysisOutput.setSourceCodeAfterForWhole(sourceCodeAfterForWhole);
+            String className = extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName();
+            refactoringForAnalysisOutput.setCommitId(commitId);
+            refactoringForAnalysisOutput.setClassNameBefore(extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName());
+            refactoringForAnalysisOutput.setPackageNameBefore(className.substring(0, className.lastIndexOf('.')));
+            refactoringForAnalysisOutput.setDiffSourceCodeSet(new HashSet<>(Collections.singletonList(extractedCode)));
+            refactoringForAnalysisOutput.setInvokedMethodSet(new HashSet<>());
+            refactoringForAnalysisOutput.setDescription(refactoring.toString());
+            String methodName = className + "#" + extractOperationRefactoring.getSourceOperationBeforeExtraction().getName();
+            setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, extractOperationRefactoring.getSourceOperationBeforeExtraction().getBody());
+            handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
+            handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, locationInfoExtracted, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
+//            filePathToRefactoring.put(filePathBefore, refactoringForAnalysisOutput);
+//            commitFileLineUniqueIds.add(commitFileLineUniqueId);
+//            }
+            refactoringsForAnalysis.add(refactoringForAnalysisOutput);
         }
     }
 

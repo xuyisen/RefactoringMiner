@@ -52,9 +52,9 @@ public class PurityChecker {
             case MOVE_AND_INLINE_OPERATION:
                 result = detectInlineMethodPurity((InlineOperationRefactoring) refactoring, refactorings, modelDiff);
                 break;
-            case SPLIT_OPERATION:
-                result = detectSplitMethodPurity((SplitOperationRefactoring) refactoring, refactorings, modelDiff);
-                break;
+//            case SPLIT_OPERATION:
+//                result = detectSplitMethodPurity((SplitOperationRefactoring) refactoring, refactorings, modelDiff);
+//                break;
             default:
                 result = null;
         }

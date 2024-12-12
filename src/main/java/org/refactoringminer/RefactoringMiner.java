@@ -1,5 +1,28 @@
 package org.refactoringminer;
 
+import analysis.RefactoringAnalysis;
+import analysis.entity.Commit;
+import analysis.entity.CommitsResponse;
+import analysis.entity.RefactoringForAnalysis;
+import analysis.utils.JsonUtil;
+import com.github.gumtreediff.matchers.Mapping;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import gr.uom.java.xmi.diff.UMLModelDiff;
+import gui.webdiff.WebDiffRunnerCli;
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jgit.lib.Repository;
+import org.refactoringminer.api.*;
+import org.refactoringminer.astDiff.models.ASTDiff;
+import org.refactoringminer.astDiff.models.ExtendedMultiMappingStore;
+import org.refactoringminer.astDiff.models.ProjectASTDiff;
+import org.refactoringminer.rm1.GitHistoryRefactoringMinerImpl;
+import org.refactoringminer.util.GitServiceImpl;
+import spark.utils.CollectionUtils;
+
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,17 +30,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 
-import gr.uom.java.xmi.diff.UMLModelDiff;
-import gui.webdiff.WebDiffRunnerCli;
-import org.apache.commons.lang3.StringUtils;
-import org.eclipse.jgit.lib.Repository;
-import org.refactoringminer.api.*;
-import org.refactoringminer.rm1.GitHistoryRefactoringMinerImpl;
-import org.refactoringminer.util.GitServiceImpl;
-import spark.utils.CollectionUtils;
 
 public class RefactoringMiner {
-	private static Path path = null;
+	public static Path path = null;
 	public static void main(String[] args) throws Exception {
 		if (args.length < 1) {
 			throw argumentException();
@@ -44,18 +59,50 @@ public class RefactoringMiner {
 			detectAtGitHubPullRequest(args);
 		} else if (option.equalsIgnoreCase("diff")) {
 			new WebDiffRunnerCli().execute(Arrays.copyOfRange(args, 1, args.length));
-		}else if(option.equalsIgnoreCase("-scr")){
+		}else if(option.equalsIgnoreCase("-p")){
+			detectPure(args);
+		}else if(option.equalsIgnoreCase("-pc")) {
+			detectPureWithContext(args);
+		}else if(option.equalsIgnoreCase("-pbc")) {
+			detectPureWithContextBetweenCommits(args);
+		} else if(option.equalsIgnoreCase("-scr")){
 			detectRefactoringBySourceCode(args);
-		}
-		else {
+		} else if(option.equalsIgnoreCase("-scp")){
+			detectPureBySourceCode(args);
+		} else if(option.equalsIgnoreCase("-ast")){
+			detectAST(args);
+		} else {
 			throw argumentException();
 		}
 	}
 
+	public static void detectAST(String[] args) throws Exception{
+		String filePath1 = args[1];
+		String filePath2 = args[2];
+		GitHistoryRefactoringMiner refactoringMiner = new GitHistoryRefactoringMinerImpl();
+		File file1 = new File(filePath1);
+		File file2 = new File(filePath2);
+		ProjectASTDiff projectASTDiff = refactoringMiner.diffAtDirectories(file1, file2);
+		double accuracy = 0.0;
+		int tp = 0;
+		int all = 0;
+		for (ASTDiff astDiff : projectASTDiff.getDiffSet()) {
+			ExtendedMultiMappingStore allMappings = astDiff.getAllMappings();
+			for (Mapping mapping : allMappings.getMappings()) {
+				if (mapping.first.getLabel().equals(mapping.second.getLabel())) {
+					tp++;
+				}
+				all++;
+			}
+		}
+		accuracy = (double) tp / all;
+		System.out.println("Accuracy: " + accuracy);
+	}
 	private static void detectRefactoringBySourceCode(String[] args) throws Exception{
 		String fileName = args[1];
-		String sourceCodeBeforeFile = args[2];
+        String sourceCodeBeforeFile = args[2];
 		String sourceCodeAfterFile = args[3];
+		String refactoringType = args[4];
 		String sourceCodeBefore = new String(Files.readAllBytes(Paths.get(sourceCodeBeforeFile)));
 		String sourceCodeAfter = new String(Files.readAllBytes(Paths.get(sourceCodeAfterFile)));
 		GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
@@ -68,7 +115,13 @@ public class RefactoringMiner {
 			@Override
 			public void handle(String commitId, List<Refactoring> refactorings) {
 				if(!refactorings.isEmpty()) {
-					detectResult[0] = true;
+					for(Refactoring refactoring : refactorings) {
+						if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), refactoringType)) {
+							detectResult[0] = true;
+							return;
+						}
+					}
+
 				}
 			}
 
@@ -96,7 +149,7 @@ public class RefactoringMiner {
 					if(!isForRefactoringType(refactoring)) {
 						continue;
 					}
-					PurityCheckResult purityCheckResult = PurityChecker.check(refactoring, refactorings,modelDiff);
+					PurityCheckResult purityCheckResult = PurityChecker.check(refactoring, refactorings, modelDiff);
 					if(purityCheckResult != null && purityCheckResult.isPure()) {
 						isPure = true;
 					}
@@ -126,6 +179,187 @@ public class RefactoringMiner {
 			return true;
 		}
 		return false;
+	}
+	private static void detectPureBySourceCode(String[] args) throws Exception{
+		String fileName = args[1];
+		String sourceCodeBefore = args[2];
+		String sourceCodeAfter = args[3];
+		GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+		Map<String, String> fileContentsBefore = new HashMap<>();
+		Map<String, String> fileContentsCurrent = new HashMap<>();
+		fileContentsBefore.put(fileName, sourceCodeBefore);
+		fileContentsCurrent.put(fileName, sourceCodeAfter);
+		final boolean[] hasRefactoring = {false};
+
+	}
+
+	public static void detectPure(String[] args) throws Exception{
+		int maxArgLength = processJSONoption(args, 3);
+		if (args.length > maxArgLength) {
+			throw argumentException();
+		}
+		String folder = args[1];
+		String branch = null;
+		if (containsBranchArgument(args)) {
+			branch = args[2];
+		}
+		GitService gitService = new GitServiceImpl();
+		try (Repository repo = gitService.openRepository(folder)) {
+			String gitURL = repo.getConfig().getString("remote", "origin", "url");
+			GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+			startJSON();
+			detector.detectAll(repo, branch, new RefactoringHandler() {
+				private int commitCount = 0;
+				@Override
+				public void handle(String commitId, List<Refactoring> refactorings) {
+
+				}
+
+				@Override
+				public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+					System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+							commitsCount, errorCommitsCount, refactoringsCount));
+				}
+
+				@Override
+				public void handleException(String commit, Exception e) {
+					System.err.println("Error processing commit " + commit);
+					e.printStackTrace(System.err);
+				}
+
+				@Override
+				public void handleModelDiffWithContent(String commitId, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+					if(commitCount > 0) {
+						betweenCommitsJSON();
+					}
+					commitJSONForPure(gitURL, commitId, refactorings, modelDiff, fileContentsBefore, fileContentsCurrent);
+					commitCount++;
+				}
+			});
+			endJSON();
+		}
+	}
+	public static void detectPureWithContextBetweenCommits(String[] args) throws Exception{
+		int maxArgLength = processJSONoption(args, 4);
+		if (!(args.length == maxArgLength-1 || args.length == maxArgLength)) {
+			throw argumentException();
+		}
+		String folder = args[1];
+		String startCommit = args[2];
+		String endCommit = containsEndArgument(args) ? args[3] : null;
+		String projectName = folder.substring(folder.lastIndexOf("/") + 1);
+		GitService gitService = new GitServiceImpl();
+		List<Commit> commitsForRAG = new ArrayList<>();
+		try (Repository repo = gitService.openRepository(folder)) {
+			String gitURL = repo.getConfig().getString("remote", "origin", "url");
+			GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+			detector.detectBetweenCommits(repo, startCommit, endCommit, new RefactoringHandler() {
+
+				@Override
+				public void handle(String commitId, List<Refactoring> refactorings) {
+
+				}
+
+				@Override
+				public boolean skipCommit(String commitId) {
+					Set<String> commits = new HashSet<>();
+					commits.add("ae08612024c2eba6d2608fe0d58d157c5c7768d8");
+					if (commits.contains(commitId)) {
+						return true;
+					}
+					return false;
+				}
+
+
+
+				@Override
+				public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+					System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+							commitsCount, errorCommitsCount, refactoringsCount));
+				}
+
+				@Override
+				public void handleException(String commit, Exception e) {
+					System.err.println("Error processing commit " + commit);
+					e.printStackTrace(System.err);
+				}
+
+				@Override
+				public void handleModelDiffWithContent(String commitId, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+					Commit commit = new Commit();
+					List<RefactoringForAnalysis> refactoringForAnalysisList = RefactoringAnalysis.analysisRefactorings(commitId, refactorings, modelDiff, fileContentsBefore, fileContentsCurrent);
+					if(!refactoringForAnalysisList.isEmpty()){
+						commit.setRefactorings(refactoringForAnalysisList);
+					}else{
+						commit.setRefactorings(new ArrayList<>());
+					}
+					commit.setUrl(gitURL);
+					commit.setCommitId(commitId);
+					commitsForRAG.add(commit);
+				}
+			});
+			String refactoringJsonPathWithSC = "tmp/data/output/" + projectName +"_em_pure_refactoring_w_sc_v6.json";
+			CommitsResponse commitsResponse = new CommitsResponse();
+			commitsResponse.setCommits(commitsForRAG);
+			JsonUtil.writeJsonToFile(refactoringJsonPathWithSC, commitsResponse);
+		}
+	}
+
+	public static void detectPureWithContext(String[] args) throws Exception{
+		int maxArgLength = processJSONoption(args, 3);
+		if (args.length > maxArgLength) {
+			throw argumentException();
+		}
+		String folder = args[1];
+		String branch = null;
+		if (containsBranchArgument(args)) {
+			branch = args[2];
+		}
+		String projectName = folder.substring(folder.lastIndexOf("/") + 1);
+		GitService gitService = new GitServiceImpl();
+		List<Commit> commitsForRAG = new ArrayList<>();
+		try (Repository repo = gitService.openRepository(folder)) {
+			String gitURL = repo.getConfig().getString("remote", "origin", "url");
+			String branchForRecord = branch;
+			GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+			detector.detectAll(repo, branch, new RefactoringHandler() {
+				@Override
+				public void handle(String commitId, List<Refactoring> refactorings) {
+
+				}
+
+				@Override
+				public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+					System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+							commitsCount, errorCommitsCount, refactoringsCount));
+				}
+
+				@Override
+				public void handleException(String commit, Exception e) {
+					System.err.println("Error processing commit " + commit);
+					e.printStackTrace(System.err);
+				}
+
+				@Override
+				public void handleModelDiffWithContent(String commitId, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+					Commit commit = new Commit();
+					List<RefactoringForAnalysis> refactoringForAnalysisList = RefactoringAnalysis.analysisRefactorings(commitId, refactorings, modelDiff, fileContentsBefore, fileContentsCurrent);
+					if(!refactoringForAnalysisList.isEmpty()){
+						commit.setRefactorings(refactoringForAnalysisList);
+					}else{
+						commit.setRefactorings(new ArrayList<>());
+					}
+					commit.setUrl(gitURL);
+					commit.setCommitId(commitId);
+					commit.setBranch(branchForRecord);
+					commitsForRAG.add(commit);
+				}
+			});
+		}
+		String refactoringJsonPathWithSC = "tmp/data/output/" + projectName +"_em_pure_refactoring_w_sc_v6.json";
+		CommitsResponse commitsResponse = new CommitsResponse();
+		commitsResponse.setCommits(commitsForRAG);
+		JsonUtil.writeJsonToFile(refactoringJsonPathWithSC, commitsResponse);
 	}
 
 	public static void detectAll(String[] args) throws Exception {
@@ -164,6 +398,11 @@ public class RefactoringMiner {
 				public void handleException(String commit, Exception e) {
 					System.err.println("Error processing commit " + commit);
 					e.printStackTrace(System.err);
+				}
+
+				@Override
+				public void handleModelDiffWithContent(String commitId, List<Refactoring> refactoringsAtRevision, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+
 				}
 			});
 			endJSON();
@@ -392,7 +631,46 @@ public class RefactoringMiner {
 		}
 	}
 
-	private static void betweenCommitsJSON() {
+	public static void commitJSONForPure(String cloneURL, String currentCommitId, List<Refactoring> refactoringsAtRevision, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent){
+		if(path != null) {
+			StringBuilder sb = new StringBuilder();
+			sb.append("{").append("\n");
+			sb.append("\t").append("\"").append("repository").append("\"").append(": ").append("\"").append(cloneURL).append("\"").append(",").append("\n");
+			sb.append("\t").append("\"").append("sha1").append("\"").append(": ").append("\"").append(currentCommitId).append("\"").append(",").append("\n");
+			String url = GitHistoryRefactoringMinerImpl.extractCommitURL(cloneURL, currentCommitId);
+			sb.append("\t").append("\"").append("url").append("\"").append(": ").append("\"").append(url).append("\"").append(",").append("\n");
+			sb.append("\t").append("\"").append("refactorings").append("\"").append(": ");
+			sb.append("[");
+			int counter = 0;
+			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+			for(Refactoring refactoring : refactoringsAtRevision) {
+				PurityCheckResult purityCheckResult = PurityChecker.check(refactoring, refactoringsAtRevision, modelDiff);
+				JsonObject jsonObject = JsonParser.parseString(refactoring.toJSON()).getAsJsonObject();
+				if(purityCheckResult != null) {
+					JsonObject purityObject = gson.toJsonTree(purityCheckResult).getAsJsonObject();
+					jsonObject.add("purity", purityObject);
+				}else{
+					jsonObject.addProperty("purity", "-");
+				}
+				sb.append(gson.toJson(jsonObject));
+				if(counter < refactoringsAtRevision.size()-1) {
+					sb.append(",");
+				}
+				sb.append("\n");
+				counter++;
+			}
+			sb.append("]").append("\n");
+			sb.append("}");
+			try {
+				Files.write(path, sb.toString().getBytes(), StandardOpenOption.APPEND);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+
+	public static void betweenCommitsJSON() {
 		if(path != null) {
 			StringBuilder sb = new StringBuilder();
 			sb.append(",").append("\n");
@@ -404,7 +682,7 @@ public class RefactoringMiner {
 		}
 	}
 
-	private static void startJSON() {
+	public static void startJSON() {
 		if(path != null) {
 			StringBuilder sb = new StringBuilder();
 			sb.append("{").append("\n");
@@ -418,7 +696,7 @@ public class RefactoringMiner {
 		}
 	}
 
-	private static void endJSON() {
+	public static void endJSON() {
 		if(path != null) {
 			StringBuilder sb = new StringBuilder();
 			sb.append("]").append("\n");

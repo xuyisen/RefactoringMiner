@@ -64,6 +64,7 @@ dependencies {
     implementation 'com.github.gumtreediff:gen.jdt:3.0.0'
     implementation 'org.jcommander:jcommander:1.85'
     implementation 'org.jsoup:jsoup:1.18.2'
+    implementation 'com.google.code.gson:gson:2.8.9' // 确保使用最新版本
     implementation 'com.perforce:p4java:2024.1.2674354'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'

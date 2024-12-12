@@ -141,6 +141,10 @@ public class GitHistoryRefactoringMinerImpl implements GitHistoryRefactoringMine
 		List<Refactoring> refactoringsAtRevision;
 		UMLModelDiff modelDiff;
 		String commitId = currentCommit.getId().getName();
+		if(handler.skipCommit(commitId)){
+			logger.info(String.format("Skipping revision %s", commitId));
+			return Collections.emptyList();
+		}
 		Set<String> filePathsBefore = new LinkedHashSet<String>();
 		Set<String> filePathsCurrent = new LinkedHashSet<String>();
 		Map<String, String> renamedFilesHint = new HashMap<String, String>();
@@ -171,6 +175,7 @@ public class GitHistoryRefactoringMinerImpl implements GitHistoryRefactoringMine
 		}
 		handler.handle(commitId, refactoringsAtRevision);
 		handler.handleModelDiff(commitId, refactoringsAtRevision, modelDiff);
+		handler.handleModelDiffWithContent(commitId, refactoringsAtRevision, modelDiff, fileContentsBefore, fileContentsCurrent);
 		return refactoringsAtRevision;
 	}
 
