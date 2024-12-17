@@ -127,11 +127,9 @@ public class RefactoringAnalysis {
             refactoringForAnalysisOutput.setDescription(refactoring.toString());
             String methodName = className + "#" + inlineOperationRefactoring.getInlinedOperation().getName();
             setPackageAndClassInfo(className, modelDiff, refactoringForAnalysisOutput, methodName, inlineOperationRefactoring.getInlinedOperation().getBody());
-            String movedMethodName = className + "#" + inlineOperationRefactoring.getTargetOperationBeforeInline().getName();
-            refactoringForAnalysisOutput.setMethodNameBefore(methodName + "\n" + movedMethodName);
+            refactoringForAnalysisOutput.setMethodNameBefore(methodName);
             Set<String> methodNameSet = new HashSet<>();
             methodNameSet.add(methodName);
-            methodNameSet.add(movedMethodName);
             refactoringForAnalysisOutput.setMethodNameBeforeSet(methodNameSet);
             handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
             handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, inlineOperationLocationInfo, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
