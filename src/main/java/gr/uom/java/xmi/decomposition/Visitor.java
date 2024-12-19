@@ -3,6 +3,8 @@ package gr.uom.java.xmi.decomposition;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -28,6 +30,7 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.ExpressionMethodReference;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
+import org.eclipse.jdt.core.dom.InstanceofExpression;
 import org.eclipse.jdt.core.dom.LambdaExpression;
 import org.eclipse.jdt.core.dom.MarkerAnnotation;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
@@ -92,17 +95,20 @@ public class Visitor extends ASTVisitor {
 	private List<LeafExpression> arguments = new ArrayList<>();
 	private List<LeafExpression> parenthesizedExpressions = new ArrayList<>();
 	private List<LeafExpression> castExpressions = new ArrayList<>();
+	private List<LeafExpression> instanceofExpressions = new ArrayList<>();
 	private List<TernaryOperatorExpression> ternaryOperatorExpressions = new ArrayList<TernaryOperatorExpression>();
 	private List<LambdaExpressionObject> lambdas = new ArrayList<LambdaExpressionObject>();
 	private DefaultMutableTreeNode root = new DefaultMutableTreeNode();
 	private DefaultMutableTreeNode current = root;
+	private Map<String, Set<VariableDeclaration>> activeVariableDeclarations; 
 	private final String javaFileContent;
 
-	public Visitor(CompilationUnit cu, String sourceFolder, String filePath, VariableDeclarationContainer container, String javaFileContent) {
+	public Visitor(CompilationUnit cu, String sourceFolder, String filePath, VariableDeclarationContainer container, Map<String, Set<VariableDeclaration>> activeVariableDeclarations, String javaFileContent) {
 		this.cu = cu;
 		this.sourceFolder = sourceFolder;
 		this.filePath = filePath;
 		this.container = container;
+		this.activeVariableDeclarations = activeVariableDeclarations;
 		this.javaFileContent = javaFileContent;
 	}
 
@@ -137,7 +143,7 @@ public class Visitor extends ASTVisitor {
 	}
 
 	public boolean visit(ConditionalExpression node) {
-		TernaryOperatorExpression ternary = new TernaryOperatorExpression(cu, sourceFolder, filePath, node, container, javaFileContent);
+		TernaryOperatorExpression ternary = new TernaryOperatorExpression(cu, sourceFolder, filePath, node, container, activeVariableDeclarations, javaFileContent);
 		ternaryOperatorExpressions.add(ternary);
 		if(current.getUserObject() != null) {
 			AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -202,7 +208,7 @@ public class Visitor extends ASTVisitor {
 
 	public boolean visit(VariableDeclarationFragment node) {
 		if(!(node.getParent() instanceof LambdaExpression)) {
-			VariableDeclaration variableDeclaration = new VariableDeclaration(cu, sourceFolder, filePath, node, container, javaFileContent);
+			VariableDeclaration variableDeclaration = new VariableDeclaration(cu, sourceFolder, filePath, node, container, activeVariableDeclarations, javaFileContent);
 			variableDeclarations.add(variableDeclaration);
 			if(current.getUserObject() != null) {
 				AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -213,7 +219,7 @@ public class Visitor extends ASTVisitor {
 	}
 
 	public boolean visit(SingleVariableDeclaration node) {
-		VariableDeclaration variableDeclaration = new VariableDeclaration(cu, sourceFolder, filePath, node, container, node.isVarargs(), javaFileContent);
+		VariableDeclaration variableDeclaration = new VariableDeclaration(cu, sourceFolder, filePath, node, container, node.isVarargs(), activeVariableDeclarations, javaFileContent);
 		variableDeclarations.add(variableDeclaration);
 		if(current.getUserObject() != null) {
 			AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -263,6 +269,7 @@ public class Visitor extends ASTVisitor {
 			removeLast(this.thisExpressions, anonymous.getThisExpressions());
 			removeLast(this.parenthesizedExpressions, anonymous.getParenthesizedExpressions());
 			removeLast(this.castExpressions, anonymous.getCastExpressions());
+			removeLast(this.instanceofExpressions, anonymous.getInstanceofExpressions());
 			removeLast(this.arguments, anonymous.getArguments());
 			this.ternaryOperatorExpressions.removeAll(anonymous.getTernaryOperatorExpressions());
 			this.anonymousClassDeclarations.removeAll(anonymous.getAnonymousClassDeclarations());
@@ -413,6 +420,16 @@ public class Visitor extends ASTVisitor {
 		if(current.getUserObject() != null) {
 			AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
 			anonymous.getTypeLiterals().add(expression);
+		}
+		return super.visit(node);
+	}
+
+	public boolean visit(InstanceofExpression node) {
+		LeafExpression expression = new LeafExpression(cu, sourceFolder, filePath, node, CodeElementType.INSTANCEOF_EXPRESSION, container);
+		instanceofExpressions.add(expression);
+		if(current.getUserObject() != null) {
+			AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
+			anonymous.getInstanceofExpressions().add(expression);
 		}
 		return super.visit(node);
 	}
@@ -666,7 +683,7 @@ public class Visitor extends ASTVisitor {
 				castExpressionInParenthesizedExpression(argument))
 			return;
 		if(argument instanceof ExpressionMethodReference) {
-			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (ExpressionMethodReference)argument, container, javaFileContent);
+			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (ExpressionMethodReference)argument, container, activeVariableDeclarations, javaFileContent);
 			lambdas.add(lambda);
 			if(current.getUserObject() != null) {
 				AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -674,7 +691,7 @@ public class Visitor extends ASTVisitor {
 			}
 		}
 		else if(argument instanceof SuperMethodReference) {
-			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (SuperMethodReference)argument, container, javaFileContent);
+			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (SuperMethodReference)argument, container, activeVariableDeclarations, javaFileContent);
 			lambdas.add(lambda);
 			if(current.getUserObject() != null) {
 				AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -682,7 +699,7 @@ public class Visitor extends ASTVisitor {
 			}
 		}
 		else if(argument instanceof TypeMethodReference) {
-			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (TypeMethodReference)argument, container, javaFileContent);
+			LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, (TypeMethodReference)argument, container, activeVariableDeclarations, javaFileContent);
 			lambdas.add(lambda);
 			if(current.getUserObject() != null) {
 				AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -764,7 +781,7 @@ public class Visitor extends ASTVisitor {
 	}
 
 	public boolean visit(LambdaExpression node) {
-		LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, node, container, javaFileContent);
+		LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, node, container, activeVariableDeclarations, javaFileContent);
 		lambdas.add(lambda);
 		if(current.getUserObject() != null) {
 			AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -777,7 +794,7 @@ public class Visitor extends ASTVisitor {
 		List<Statement> statements = node.statements();
 		for(Statement statement : statements) {
 			if(statement instanceof Block) {
-				LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, statement, container, javaFileContent);
+				LambdaExpressionObject lambda = new LambdaExpressionObject(cu, sourceFolder, filePath, statement, container, activeVariableDeclarations, javaFileContent);
 				lambdas.add(lambda);
 				if(current.getUserObject() != null) {
 					AnonymousClassDeclarationObject anonymous = (AnonymousClassDeclarationObject)current.getUserObject();
@@ -884,6 +901,10 @@ public class Visitor extends ASTVisitor {
 
 	public List<LeafExpression> getCastExpressions() {
 		return castExpressions;
+	}
+
+	public List<LeafExpression> getInstanceofExpressions() {
+		return instanceofExpressions;
 	}
 
 	public List<TernaryOperatorExpression> getTernaryOperatorExpressions() {

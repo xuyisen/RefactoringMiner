@@ -154,6 +154,13 @@ public abstract class AbstractCodeMapping implements LeafMappingProvider {
 						return true;
 					}
 				}
+				else if(s1.contains(r.getBefore() + ".class") && s2.contains(r.getAfter() + ".class") &&
+						!s1.contains("<" + r.getBefore() + ">") && !s2.contains("<" + r.getAfter() + ">")) {
+					String temp = s2.replace(r.getAfter(), r.getBefore());
+					if(s1.equals(temp) || (s1 + JAVA.STATEMENT_TERMINATION).equals(temp)) {
+						return true;
+					}
+				}
 			}
 		}
 		return false;
@@ -613,6 +620,22 @@ public abstract class AbstractCodeMapping implements LeafMappingProvider {
 						}
 					}
 				}
+				else if(after.startsWith(variableName + " ") && initializer != null) {
+					if(initializer.toString().contains(before)) {
+						ExtractVariableRefactoring ref = new ExtractVariableRefactoring(declaration, operation1, operation2, insideExtractedOrInlinedMethod);
+						List<LeafExpression> subExpressions = getFragment1().findExpression(before);
+						for(LeafExpression subExpression : subExpressions) {
+							LeafMapping leafMapping = new LeafMapping(subExpression, initializer, operation1, operation2);
+							ref.addSubExpressionMapping(leafMapping);
+						}
+						processExtractVariableRefactoring(ref, refactorings);
+						checkForNestedExtractVariable(ref, refactorings, nonMappedLeavesT2, insideExtractedOrInlinedMethod);
+						//if(identical()) {
+							identicalWithExtractedVariable = true;
+						//}
+						return;
+					}
+				}
 				if(variableName.equals(after) && initializer != null) {
 					checkForAliasedVariable(initializer, replacement, nonMappedLeavesT2, classDiff, insideExtractedOrInlinedMethod);
 					if(initializer.toString().equals(before) ||
@@ -680,6 +703,29 @@ public abstract class AbstractCodeMapping implements LeafMappingProvider {
 						if(identical()) {
 							identicalWithExtractedVariable = true;
 						}
+						return;
+					}
+				}
+			}
+			if(getReplacements().isEmpty() && !fragment1.getString().equals(fragment2.getString()) && initializer != null && fragment1.getVariableDeclaration(variableName) == null) {
+				if(getFragment1().getString().contains(initializer.getString()) && getFragment2().getString().contains(variableName) &&
+						!getFragment2().getString().equals(JAVA.RETURN_SPACE + variableName + JAVA.STATEMENT_TERMINATION)) {
+					boolean mappingFound = false;
+					for(AbstractCodeMapping m : currentMappings) {
+						if(m.getFragment2().equalFragment(statement)) {
+							mappingFound = true;
+							break;
+						}
+					}
+					if(!mappingFound) {
+						ExtractVariableRefactoring ref = new ExtractVariableRefactoring(declaration, operation1, operation2, insideExtractedOrInlinedMethod);
+						List<LeafExpression> subExpressions = getFragment1().findExpression(initializer.getString());
+						for(LeafExpression subExpression : subExpressions) {
+							LeafMapping leafMapping = new LeafMapping(subExpression, initializer, operation1, operation2);
+							ref.addSubExpressionMapping(leafMapping);
+						}
+						processExtractVariableRefactoring(ref, refactorings);
+						checkForNestedExtractVariable(ref, refactorings, nonMappedLeavesT2, insideExtractedOrInlinedMethod);
 						return;
 					}
 				}
