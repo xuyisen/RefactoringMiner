@@ -10,7 +10,7 @@ import org.refactoringminer.util.GitServiceImpl;
 
 public class RunWithLocallyClonedRepository {
     public static void main(String[] args) throws Exception {
-        String url = "https://github.com/xuyisen/test-refactoringMiner/commit/105d58a6622d1a32bce48bca5a31cf5c07dbdbdf";
+        String url = "https://github.com/xuyisen/test-refactoringMiner/commit/f90e91de1dd1535cb70c76ed77c58bb35298206d";
         String repo = URLHelper.getRepo(url);
         String commit = URLHelper.getCommit(url);
 

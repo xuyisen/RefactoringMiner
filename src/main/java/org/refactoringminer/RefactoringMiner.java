@@ -67,7 +67,9 @@ public class RefactoringMiner {
 			detectPureWithContextBetweenCommits(args);
 		} else if(option.equalsIgnoreCase("-scr")){
 			detectRefactoringBySourceCode(args);
-		} else if(option.equalsIgnoreCase("-scp")){
+		} else if (option.equalsIgnoreCase("-spr")){
+			detectPullPushRefactoringBySourceCode(args);
+		}else if(option.equalsIgnoreCase("-scp")){
 			detectPureBySourceCode(args);
 		} else if(option.equalsIgnoreCase("-ast")){
 			detectAST(args);
@@ -98,6 +100,73 @@ public class RefactoringMiner {
 		accuracy = (double) tp / all;
 		System.out.println("Accuracy: " + accuracy);
 	}
+
+	private static void detectPullPushRefactoringBySourceCode(String[] args) throws Exception{
+		String superclassFilePath = args[1];
+		String superclassRefactoredFilePath = args[2];
+		String subclassFilePath = args[3];
+		String subclassRefactoredFilePath = args[4];
+		String refactoringType = args[5];
+		String subclassSourceCode = new String(Files.readAllBytes(Paths.get(subclassFilePath)));
+		String subclassRefactoredSourceCode = new String(Files.readAllBytes(Paths.get(subclassRefactoredFilePath)));
+		String superclassSourceCode = new String(Files.readAllBytes(Paths.get(superclassFilePath)));
+		String superclassRefactoredSourceCode = new String(Files.readAllBytes(Paths.get(superclassRefactoredFilePath)));
+		GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+		Map<String, String> fileContentsBefore = new HashMap<>();
+		Map<String, String> fileContentsCurrent = new HashMap<>();
+		fileContentsBefore.put(subclassFilePath, subclassSourceCode);
+		fileContentsBefore.put(superclassFilePath, superclassSourceCode);
+		fileContentsCurrent.put(subclassFilePath, subclassRefactoredSourceCode);
+		fileContentsCurrent.put(superclassFilePath, superclassRefactoredSourceCode);
+		final boolean[] detectResult = {false, false};
+		detector.detectAtFileContents(fileContentsBefore, fileContentsCurrent, new RefactoringHandler() {
+			@Override
+			public void handle(String commitId, List<Refactoring> refactorings) {
+				if(!refactorings.isEmpty()) {
+					for(Refactoring refactoring : refactorings) {
+						if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), refactoringType)) {
+							detectResult[0] = true;
+							return;
+						}
+					}
+
+				}
+			}
+
+			@Override
+			public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+				System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+						commitsCount, errorCommitsCount, refactoringsCount));
+			}
+
+			@Override
+			public void handleException(String commit, Exception e) {
+				System.err.println("Error processing commit " + commit);
+				e.printStackTrace(System.err);
+			}
+
+			@Override
+			public void handleModelDiffWithContent(String commitId, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent) {
+				detectResult[1] = true;
+				if(CollectionUtils.isEmpty(refactorings)) {
+					detectResult[1] = false;
+					return;
+				}
+				boolean isPure = false;
+				for (Refactoring refactoring : refactorings) {
+					if(!isForRefactoringType(refactoring)) {
+						continue;
+					}
+					PurityCheckResult purityCheckResult = PurityChecker.check(refactoring, refactorings, modelDiff);
+					if(purityCheckResult != null && purityCheckResult.isPure()) {
+						isPure = true;
+					}
+				}
+				detectResult[1] = isPure;
+			}
+		});
+	}
+
 	private static void detectRefactoringBySourceCode(String[] args) throws Exception{
 		String fileName = args[1];
         String sourceCodeBeforeFile = args[2];
