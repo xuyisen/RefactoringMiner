@@ -165,6 +165,7 @@ public class RefactoringMiner {
 				detectResult[1] = isPure;
 			}
 		});
+		System.out.println(detectResult[0] + " " + detectResult[1]);
 	}
 
 	private static void detectRefactoringBySourceCode(String[] args) throws Exception{
