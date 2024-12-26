@@ -316,7 +316,7 @@ public class RefactoringMiner {
 		}
 		String folder = args[1];
 		String startCommit = args[2];
-		String endCommit = containsEndArgument(args) ? args[3] : null;
+		String endCommit = args[3];
 		String skipFilePath = args[4];
 		String skipCommitsStr = new String(Files.readAllBytes(Paths.get(skipFilePath)));
 		List<String> skipCommits = Arrays.asList(skipCommitsStr.split("\n"));
