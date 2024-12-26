@@ -310,13 +310,16 @@ public class RefactoringMiner {
 		}
 	}
 	public static void detectPureWithContextBetweenCommits(String[] args) throws Exception{
-		int maxArgLength = processJSONoption(args, 4);
+		int maxArgLength = processJSONoption(args, 5);
 		if (!(args.length == maxArgLength-1 || args.length == maxArgLength)) {
 			throw argumentException();
 		}
 		String folder = args[1];
 		String startCommit = args[2];
 		String endCommit = containsEndArgument(args) ? args[3] : null;
+		String skipFilePath = args[4];
+		String skipCommitsStr = new String(Files.readAllBytes(Paths.get(skipFilePath)));
+		List<String> skipCommits = Arrays.asList(skipCommitsStr.split("\n"));
 		String projectName = folder.substring(folder.lastIndexOf("/") + 1);
 		GitService gitService = new GitServiceImpl();
 		List<Commit> commitsForRAG = new ArrayList<>();
@@ -332,12 +335,7 @@ public class RefactoringMiner {
 
 				@Override
 				public boolean skipCommit(String commitId) {
-					Set<String> commits = new HashSet<>();
-//					commits.add("ae08612024c2eba6d2608fe0d58d157c5c7768d8");
-//					commits.add("3cc64958a6a389e83b1f608c6513985e7d37d140");
-//					commits.add("840e7143a58542da18227e443df935e1ea429fc9");
-//					commits.add("0cb30594ab84cdba5196967682c12a9bf74a61c6");
-					if (commits.contains(commitId)) {
+					if(skipCommits.contains(commitId)){
 						return true;
 					}
 					return false;
