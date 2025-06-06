@@ -5,18 +5,17 @@ import analysis.entity.Commit;
 import analysis.entity.CommitsResponse;
 import analysis.entity.RefactoringForAnalysis;
 import analysis.utils.JsonUtil;
-import com.github.gumtreediff.matchers.Mapping;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.github.gumtreediff.actions.model.Action;
+import com.google.gson.*;
+import gr.uom.java.xmi.LocationInfo;
+import gr.uom.java.xmi.diff.ExtractOperationRefactoring;
+import gr.uom.java.xmi.diff.InlineOperationRefactoring;
 import gr.uom.java.xmi.diff.UMLModelDiff;
 import gui.webdiff.WebDiffRunnerCli;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.lib.Repository;
 import org.refactoringminer.api.*;
 import org.refactoringminer.astDiff.models.ASTDiff;
-import org.refactoringminer.astDiff.models.ExtendedMultiMappingStore;
 import org.refactoringminer.astDiff.models.ProjectASTDiff;
 import org.refactoringminer.rm1.GitHistoryRefactoringMinerImpl;
 import org.refactoringminer.util.GitServiceImpl;
@@ -30,10 +29,23 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 
+import static analysis.CallGraphExtractor.extractCallGraph;
+import static analysis.CallGraphExtractor.queryCallGraph;
+
 
 public class RefactoringMiner {
 	public static Path path = null;
 	public static void main(String[] args) throws Exception {
+
+//		extractCallGraph("47bfab896d2b59af65d18fa408764c7812f1cf97","/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/build/classes/java/main", "/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/src/main/java", "stirling.software.SPDF.SPDFApplication", "tmp/data/47bfab896d2b59af65d18fa408764c7812f1cf97_callGraph.json");
+		queryCallGraph(
+				"tmp/data/47bfab896d2b59af65d18fa408764c7812f1cf97_callGraph.json",
+				"/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/src/main/java/stirling/software/SPDF/service/CustomPDFDocumentFactory.java",
+				"load",
+				80
+		);
+//		handleRefactoringResult(args);
+//		detectASTForUrl(args);
 		if (args.length < 1) {
 			throw argumentException();
 		}
@@ -72,33 +84,285 @@ public class RefactoringMiner {
 		}else if(option.equalsIgnoreCase("-scp")){
 			detectPureBySourceCode(args);
 		} else if(option.equalsIgnoreCase("-ast")){
-			detectAST(args);
+
 		} else {
 			throw argumentException();
 		}
 	}
 
-	public static void detectAST(String[] args) throws Exception{
-		String filePath1 = args[1];
-		String filePath2 = args[2];
+	public static void detectAST(String codeBeforeFilePath, String humanRefactoringFile, String toolRefactoringFile, JsonObject jsonObject, String refactoringType) throws Exception{
+
 		GitHistoryRefactoringMiner refactoringMiner = new GitHistoryRefactoringMinerImpl();
-		File file1 = new File(filePath1);
-		File file2 = new File(filePath2);
-		ProjectASTDiff projectASTDiff = refactoringMiner.diffAtDirectories(file1, file2);
-		double accuracy = 0.0;
-		int tp = 0;
-		int all = 0;
-		for (ASTDiff astDiff : projectASTDiff.getDiffSet()) {
-			ExtendedMultiMappingStore allMappings = astDiff.getAllMappings();
-			for (Mapping mapping : allMappings.getMappings()) {
-				if (mapping.first.getLabel().equals(mapping.second.getLabel())) {
-					tp++;
+		File codeBeforeFile = new File(codeBeforeFilePath);
+		List<Action> humanActions = new ArrayList<>();
+		List<Action> toolActions = new ArrayList<>();
+		if(StringUtils.equals(refactoringType, "Extract And Move Method")){
+			String commitId = jsonObject.get("commitId").getAsString();
+			String repo = "https://github.com/mockito/mockito.git";
+			String filePathBefore = jsonObject.get("filePathBefore").getAsString();
+			String description = jsonObject.get("description").getAsString();
+			String[] targetClassNameList = description.split("\\.");
+			String targetClassName = targetClassNameList[targetClassNameList.length - 1];
+			ProjectASTDiff humanAstDiff = refactoringMiner.diffAtCommit(repo,
+					commitId, 10);
+			Set<ASTDiff> humanDiffs = humanAstDiff.getDiffSet();
+			for (ASTDiff diff : humanDiffs) {
+				if(diff.getSrcPath().equals(filePathBefore) || diff.getSrcPath().contains(targetClassName)){
+					humanActions.addAll(diff.editScript.asList());
 				}
-				all++;
+			}
+		}else{
+			File humanRefactoring = new File(humanRefactoringFile);
+			ProjectASTDiff humanAstDiff = refactoringMiner.diffAtDirectories(codeBeforeFile, humanRefactoring);
+			if (humanAstDiff == null) {
+				jsonObject.addProperty("astDiffPrecision", 0.0);
+				jsonObject.addProperty("astDiffRecall", 0.0);
+				jsonObject.addProperty("astDiffSimilarity", 0.0);
+				return;
+			}
+			Set<ASTDiff> humanDiffs = humanAstDiff.getDiffSet();
+			for (ASTDiff diff : humanDiffs) {
+				humanActions.addAll(diff.editScript.asList());
 			}
 		}
-		accuracy = (double) tp / all;
-		System.out.println("Accuracy: " + accuracy);
+
+
+		File toolRefactoring = new File(toolRefactoringFile);
+		ProjectASTDiff toolAstDiff = refactoringMiner.diffAtDirectories(codeBeforeFile, toolRefactoring);
+		if (toolAstDiff == null) {
+			jsonObject.addProperty("astDiffPrecision", 0.0);
+			jsonObject.addProperty("astDiffRecall", 0.0);
+			jsonObject.addProperty("astDiffSimilarity", 0.0);
+			return;
+		}
+		Set<ASTDiff> toolDiffs = toolAstDiff.getDiffSet();
+		for (ASTDiff diff : toolDiffs) {
+			toolActions.addAll(diff.editScript.asList());
+		}
+		if (humanActions.isEmpty() || toolActions.isEmpty()) {
+			jsonObject.addProperty("astDiffPrecision", 0.0);
+			jsonObject.addProperty("astDiffRecall", 0.0);
+			jsonObject.addProperty("astDiffSimilarity", 0.0);
+			return;
+		}
+		double overallSimilarity = computeOverallSimilarity(humanActions, toolActions, jsonObject);
+		jsonObject.addProperty("astDiffSimilarity", overallSimilarity);
+	}
+
+	public static void handleRefactoringResult(String[] args) throws Exception {
+
+		String refactoringJsonPath = "tmp/data/mockito/mockito_agent_refactoring_result_merge_v2.json";
+//		String refactoringJsonPath = "tmp/data/checkstyle/checkstyle_baseline_result_merge_with_precision_recall.json";
+		// 读取 JSON 文件
+		String content = new String(Files.readAllBytes(Paths.get(refactoringJsonPath)));
+
+		JsonArray jsonArray = JsonParser.parseString(content).getAsJsonArray();
+		// 遍历 JsonArray
+		Set<String> refactoringIds = new HashSet<>();
+		for (int i = 0; i < jsonArray.size(); i++) {
+			// 获取每个元素（JsonObject）
+			JsonObject jsonObject = jsonArray.get(i).getAsJsonObject();
+			String refactoringMinerResult = jsonObject.get("refactoringMinerResult").getAsString();
+			String description = jsonObject.get("description").getAsString();
+			String compileAndTestResult = jsonObject.get("compileAndTestResult").getAsString();
+			String repairCompileAndTestResult = "";
+			if (jsonObject.get("repairCompileAndTestResult")!=null){
+				repairCompileAndTestResult = jsonObject.get("repairCompileAndTestResult").getAsString();
+			}
+			String moveMethodResultRefactoringMiner = "";
+			if(jsonObject.get("moveMethodResultRefactoringMiner") != null){
+				moveMethodResultRefactoringMiner = jsonObject.get("moveMethodResultRefactoringMiner").getAsString();
+			}
+			String refactoringId = jsonObject.get("uniqueId").getAsString();
+			String codeBeforeRefactoring = jsonObject.get("sourceCodeBeforeForWhole").getAsString();
+			String codeAfterRefactoring = jsonObject.get("sourceCodeAfterForWhole").getAsString();
+			String methodCodeBeforeRefactoring = jsonObject.get("sourceCodeBeforeRefactoring").getAsString();
+			String methodNameRefactored = jsonObject.get("methodNameBefore").getAsString();
+			if (refactoringIds.contains(refactoringId)) {
+				continue;
+			}
+			refactoringIds.add(refactoringId);
+			String refactoringType = description.split("\t")[0];
+			String agentCode = "";
+			if (!StringUtils.equals(refactoringType, "Inline Method") && !StringUtils.equals(refactoringType, "Move Method") && !StringUtils.equals(refactoringType, "Extract Method") && !StringUtils.equals(refactoringType, "Extract And Move Method")) {
+				continue;
+			}
+			if(StringUtils.equals(moveMethodResultRefactoringMiner, "false")){
+				continue;
+			}
+			if (refactoringMinerResult.equals("false")) {
+				continue;
+			}
+			if (compileAndTestResult.equals("true")) {
+				agentCode = jsonObject.get("agentRefactoredCode").getAsString();
+			}
+			if (StringUtils.equals(repairCompileAndTestResult, "true")) {
+				agentCode = jsonObject.get("repairRefactoredCode").getAsString();
+			}
+			if(StringUtils.equals(refactoringType, "Move Method")){
+				jsonObject.addProperty("toolAfterCode", methodCodeBeforeRefactoring);
+				jsonObject.addProperty("astDiffPrecision", 1.0);
+				jsonObject.addProperty("astDiffRecall", 1.0);
+				jsonObject.addProperty("astDiffSimilarity", 1.0);
+				continue;
+			}
+			Path path = Paths.get("tmp/data/codeBefore/test.java");
+			Files.write(path, codeBeforeRefactoring.getBytes(), StandardOpenOption.CREATE);
+			path = Paths.get("tmp/data/humanRefactoring/test.java");
+			Files.write(path, codeAfterRefactoring.getBytes(), StandardOpenOption.CREATE);
+			path = Paths.get("tmp/data/toolRefactoring/test.java");
+			Files.write(path, agentCode.getBytes(), StandardOpenOption.CREATE);
+			try {
+				detectAST("tmp/data/codeBefore/test.java", "tmp/data/humanRefactoring/test.java", "tmp/data/toolRefactoring/test.java", jsonObject, refactoringType);
+			}catch (Exception e){
+				System.out.println("Error: " + refactoringId);
+				jsonObject.addProperty("astDiffPrecision", 0.0);
+				jsonObject.addProperty("astDiffRecall", 0.0);
+				jsonObject.addProperty("astDiffSimilarity", 0.0);
+			}
+			String fileName	= "checkstyle.java";
+			GitHistoryRefactoringMiner detector = new GitHistoryRefactoringMinerImpl();
+			Map<String, String> fileContentsBefore = new HashMap<>();
+			Map<String, String> fileContentsCurrent = new HashMap<>();
+			fileContentsBefore.put(fileName, codeBeforeRefactoring);
+			fileContentsCurrent.put(fileName, agentCode);
+			String finalAgentCode = agentCode;
+			if(StringUtils.equals(refactoringType, "Extract And Move Method")){
+				refactoringType = "Extract Method";
+			}
+			String finalRefactoringType = refactoringType;
+			detector.detectAtFileContents(fileContentsBefore, fileContentsCurrent, new RefactoringHandler() {
+				@Override
+				public void handle(String commitId, List<Refactoring> refactorings) {
+					if(!refactorings.isEmpty()) {
+						for(Refactoring refactoring : refactorings) {
+
+							if(StringUtils.equals(refactoring.getRefactoringType().getDisplayName(), finalRefactoringType)) {
+								if (refactoring instanceof ExtractOperationRefactoring) {
+									ExtractOperationRefactoring extractOperationRefactoring = (ExtractOperationRefactoring) refactoring;
+									String className = extractOperationRefactoring.getSourceOperationBeforeExtraction().getClassName();
+									String methodName = className + "#" + extractOperationRefactoring.getSourceOperationBeforeExtraction().getName();
+									if (StringUtils.equals(methodNameRefactored, methodName)) {
+										LocationInfo locationInfoAfter = extractOperationRefactoring.getSourceOperationAfterExtraction().getLocationInfo();
+										LocationInfo locationInfoExtracted = extractOperationRefactoring.getExtractedOperation().getLocationInfo();
+										String sourceCodeAfterForTool = RefactoringAnalysis.getLines(finalAgentCode, locationInfoAfter.getStartLine(), locationInfoAfter.getEndLine());
+										String sourceCodeExtracted = RefactoringAnalysis.getLines(finalAgentCode, locationInfoExtracted.getStartLine(), locationInfoExtracted.getEndLine());
+
+										String toolAfterCode = sourceCodeAfterForTool + "\n" + sourceCodeExtracted;
+										jsonObject.addProperty("toolAfterCode", toolAfterCode);
+									}
+								}else if (refactoring instanceof InlineOperationRefactoring) {
+									InlineOperationRefactoring inlineOperationRefactoring = (InlineOperationRefactoring) refactoring;
+									String className = inlineOperationRefactoring.getInlinedOperation().getClassName();
+									String methodName = className + "#" + inlineOperationRefactoring.getInlinedOperation().getName();
+									if (StringUtils.equals(methodNameRefactored, methodName)) {
+										LocationInfo locationInfoAfter = inlineOperationRefactoring.getTargetOperationAfterInline().getLocationInfo();
+										String sourceCodeAfterForTool = RefactoringAnalysis.getLines(finalAgentCode, locationInfoAfter.getStartLine(), locationInfoAfter.getEndLine());
+										jsonObject.addProperty("toolAfterCode", sourceCodeAfterForTool);
+									}
+								}else{
+
+								}
+
+
+							}
+						}
+
+					}
+				}
+
+				@Override
+				public void onFinish(int refactoringsCount, int commitsCount, int errorCommitsCount) {
+					System.out.println(String.format("Total count: [Commits: %d, Errors: %d, Refactorings: %d]",
+							commitsCount, errorCommitsCount, refactoringsCount));
+				}
+
+				@Override
+				public void handleException(String commit, Exception e) {
+					System.err.println("Error processing commit " + commit);
+					e.printStackTrace(System.err);
+				}
+			});
+
+		}
+		JsonUtil.writeJsonToFile(refactoringJsonPath, jsonArray);
+	}
+
+	public static double computeOverallSimilarity(List<Action> groundTruth, List<Action> prediction, JsonObject jsonObject) {
+		int matched = 0;
+		Set<Action> matchedActionGT = new HashSet<>();
+		for (Action actionPred : prediction) {
+			double maxSim = 0.0;
+			Action bestMatch = null;
+
+			for (Action actionGT : groundTruth) {
+				double sim = computeActionSimilarity(actionGT, actionPred);
+				if (sim > maxSim) {
+					maxSim = sim;
+					bestMatch = actionGT;
+				}
+			}
+
+			if (maxSim > 0.7 && bestMatch != null) {
+				matched++;
+			}
+		}
+
+		// 计算 Precision 和 Recall
+		double precision = prediction.isEmpty() ? 1.0 : (double) matched / prediction.size();
+		double recall = groundTruth.isEmpty() ? 1.0 : (double) matched / groundTruth.size();
+
+		System.out.println("Precision: " + precision);
+		System.out.println("Recall: " + recall);
+		if(recall >1.0){
+			System.out.println("recall > 1.0");
+			recall = 1.0;
+		}
+		jsonObject.addProperty("astDiffPrecision", precision);
+		jsonObject.addProperty("astDiffRecall", recall);
+		return 2 * (precision * recall) / (precision + recall + 1e-9); // 防止除0
+	}
+
+	public static double computeActionSimilarity(Action action1, Action action2) {
+		// 1. 操作类型相似性
+		double typeSim = action1.getClass().equals(action2.getClass()) ? 1.0 : 0.0;
+
+		// 2. AST 结构相似性
+		double astSim = action1.getNode().getType() == action2.getNode().getType() ? 1.0 : 0.0;
+
+		// 3. 文本相似度
+		String label1 = action1.getNode().getLabel();
+		String label2 = action2.getNode().getLabel();
+		double textSim = computeLevenshteinSimilarity(label1, label2);
+
+		// 4. 上下文相似度
+		boolean sameParent = action1.getNode().getParent().getType() == action2.getNode().getParent().getType();
+		double contextSim = sameParent ? 1.0 : 0.0;
+
+		// 计算最终相似度（可以调整权重）
+		return 0.3 * typeSim + 0.3 * astSim + 0.3 * textSim + 0.1 * contextSim;
+	}
+
+	public static double computeLevenshteinSimilarity(String str1, String str2) {
+		int len1 = str1.length();
+		int len2 = str2.length();
+		if (len1 == 0 && len2 == 0) {
+			return 1.0;
+		}
+		int[][] dp = new int[len1 + 1][len2 + 1];
+		for (int i = 0; i <= len1; i++) {
+			dp[i][0] = i;
+		}
+		for (int j = 0; j <= len2; j++) {
+			dp[0][j] = j;
+		}
+		for (int i = 1; i <= len1; i++) {
+			for (int j = 1; j <= len2; j++) {
+				int cost = str1.charAt(i - 1) == str2.charAt(j - 1) ? 0 : 1;
+				dp[i][j] = Math.min(Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost);
+			}
+		}
+		return 1.0 - (double) dp[len1][len2] / Math.max(len1, len2);
 	}
 
 	private static void detectPullPushRefactoringBySourceCode(String[] args) throws Exception{
@@ -317,9 +581,9 @@ public class RefactoringMiner {
 		String folder = args[1];
 		String startCommit = args[2];
 		String endCommit = args[3];
-		String skipFilePath = args[4];
-		String skipCommitsStr = new String(Files.readAllBytes(Paths.get(skipFilePath)));
-		List<String> skipCommits = Arrays.asList(skipCommitsStr.split("\n"));
+//		String skipFilePath = args[4];
+//		String skipCommitsStr = new String(Files.readAllBytes(Paths.get(skipFilePath)));
+		List<String> skipCommits = new ArrayList<>();
 		String projectName = folder.substring(folder.lastIndexOf("/") + 1);
 		GitService gitService = new GitServiceImpl();
 		List<Commit> commitsForRAG = new ArrayList<>();
@@ -369,7 +633,7 @@ public class RefactoringMiner {
 					commitsForRAG.add(commit);
 				}
 			});
-			String refactoringJsonPathWithSC = "tmp/data/output/" + projectName +"_em_pure_refactoring_w_sc_v6.json";
+			String refactoringJsonPathWithSC = "tmp/data/output/" + projectName +"_move_and_inline_refactoring.json";
 			CommitsResponse commitsResponse = new CommitsResponse();
 			commitsResponse.setCommits(commitsForRAG);
 			JsonUtil.writeJsonToFile(refactoringJsonPathWithSC, commitsResponse);

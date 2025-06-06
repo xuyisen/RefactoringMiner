@@ -98,17 +98,15 @@ public class RefactoringAnalysis {
     private static void getInlineOperation(String commitId, Refactoring refactoring, List<Refactoring> refactorings, UMLModelDiff modelDiff, Map<String, String> fileContentsBefore, Map<String, String> fileContentsCurrent, List<RefactoringForAnalysis> refactoringAnalysisList){
         if(isInlineMethodOrMoveInline(refactoring)){
             InlineOperationRefactoring inlineOperationRefactoring = (InlineOperationRefactoring) refactoring;
-            LocationInfo locationInfoBefore = inlineOperationRefactoring.getTargetOperationBeforeInline().getLocationInfo();
             LocationInfo locationInfoAfter = inlineOperationRefactoring.getTargetOperationAfterInline().getLocationInfo();
             LocationInfo inlineOperationLocationInfo = inlineOperationRefactoring.getInlinedOperation().getLocationInfo();
-            String filePathBefore = locationInfoBefore.getFilePath();
+            String filePathBefore = inlineOperationLocationInfo.getFilePath();
             String filePathAfter = locationInfoAfter.getFilePath();
             String sourceCodeBeforeForWhole = fileContentsBefore.get(filePathBefore);
             String sourceCodeAfterForWhole = fileContentsCurrent.get(filePathAfter);
             String sourceCodeBeforeInline = getSourceCodeByLocationInfo(inlineOperationLocationInfo, filePathBefore, fileContentsBefore);
-            String sourceCodeBefore = getSourceCodeByLocationInfo(locationInfoBefore, filePathBefore, fileContentsBefore);
             String sourceCodeAfter = getSourceCodeByLocationInfo(locationInfoAfter, filePathAfter, fileContentsCurrent);
-            String uniqueId = commitId + "_" + locationInfoBefore.getStartLine() + "_" + locationInfoBefore.getEndLine() + "_" + "_" + locationInfoAfter.getStartLine() + "_" + locationInfoAfter.getEndLine() + "_" + inlineOperationLocationInfo.getStartLine() + "_" + inlineOperationLocationInfo.getEndLine();
+            String uniqueId = commitId + "_" + inlineOperationLocationInfo.getStartLine() + "_" + inlineOperationLocationInfo.getEndLine() + "_" + "_" + locationInfoAfter.getStartLine() + "_" + locationInfoAfter.getEndLine() + "_" + inlineOperationLocationInfo.getStartLine() + "_" + inlineOperationLocationInfo.getEndLine();
             RefactoringForAnalysis refactoringForAnalysisOutput = new RefactoringForAnalysis();
             refactoringForAnalysisOutput.setFilePathBefore(filePathBefore);
             refactoringForAnalysisOutput.setFilePathAfter(filePathAfter);
@@ -132,7 +130,7 @@ public class RefactoringAnalysis {
             methodNameSet.add(methodName);
             refactoringForAnalysisOutput.setMethodNameBeforeSet(methodNameSet);
             handlePureRefactoring(refactoring, refactorings, modelDiff, refactoringForAnalysisOutput);
-            handleDiffCode(filePathBefore, locationInfoBefore, filePathAfter, locationInfoAfter, inlineOperationLocationInfo, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
+            handleDiffCode(filePathBefore, inlineOperationLocationInfo, filePathAfter, locationInfoAfter, inlineOperationLocationInfo, fileContentsBefore, fileContentsCurrent, refactoringForAnalysisOutput);
 //				filePathToRefactoring.put(filePathBefore, refactoringForAnalysisOutput);
 //				commitFileLineUniqueIds.add(commitFileLineUniqueId);
             refactoringAnalysisList.add(refactoringForAnalysisOutput);

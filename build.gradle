@@ -74,11 +74,16 @@ dependencies {
     testImplementation 'org.glassfish:javax.json:1.1.4'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
 
+
     implementation 'it.unimi.dsi:fastutil:8.5.15'
     implementation 'com.sparkjava:spark-core:2.9.4'
     implementation('org.rendersnake:rendersnake:1.9.0') {
         exclude group: 'javax.servlet', module: 'servlet-api'
     }
+    implementation 'org.soot-oss:soot:4.3.0'
+    implementation 'com.github.javaparser:javaparser-symbol-solver-core:3.26.4'
+    implementation 'com.github.javaparser:javaparser-core:3.26.4'
+
 }
 
 java {

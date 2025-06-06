@@ -14,9 +14,8 @@ public class JsonUtil {
     /**
      * 从指定的 JSON 文件读取数据并解析为指定类型的对象
      *
+     * @param <T>      泛型类型
      * @param filePath JSON 文件路径
-     * @param clazz    要解析的对象类型
-     * @param <T>     泛型类型
      * @return 解析后的对象
      */
     public static <T> T readJsonFromFile(String filePath, Class<T> clazz) {
