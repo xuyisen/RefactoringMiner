@@ -36,14 +36,6 @@ import static analysis.CallGraphExtractor.queryCallGraph;
 public class RefactoringMiner {
 	public static Path path = null;
 	public static void main(String[] args) throws Exception {
-
-//		extractCallGraph("47bfab896d2b59af65d18fa408764c7812f1cf97","/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/build/classes/java/main", "/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/src/main/java", "stirling.software.SPDF.SPDFApplication", "tmp/data/47bfab896d2b59af65d18fa408764c7812f1cf97_callGraph.json");
-		queryCallGraph(
-				"tmp/data/47bfab896d2b59af65d18fa408764c7812f1cf97_callGraph.json",
-				"/Users/yisenxu/Downloads/Research/Refactoring/Projects/Stirling-PDF/src/main/java/stirling/software/SPDF/service/CustomPDFDocumentFactory.java",
-				"load",
-				80
-		);
 //		handleRefactoringResult(args);
 //		detectASTForUrl(args);
 		if (args.length < 1) {
@@ -85,9 +77,42 @@ public class RefactoringMiner {
 			detectPureBySourceCode(args);
 		} else if(option.equalsIgnoreCase("-ast")){
 
-		} else {
+		} else if (option.equalsIgnoreCase("-cg")){
+			extractCallGraphForCommit(args);
+		}
+		else {
 			throw argumentException();
 		}
+	}
+
+	public static void extractCallGraphForCommit(String[] args) throws Exception {
+		if (args.length != 5 && args.length != 8) {
+			throw argumentException();
+		}
+		String commitId = args[1];
+		String filePath = args[2];
+		String methodName = args[3];
+		String lineNumber = args[4];
+		String classesDirectory = args[5];
+		String sootRoot = args[6];
+		String mainClassName = args[7];
+		String commitPath = "tmp/data/" + commitId + "_callGraph.json";
+		if (Files.exists(Paths.get(commitPath))) {
+			System.out.println("Call graph for commit " + commitId + " already exists.");
+			System.out.println(queryCallGraph(commitPath,
+					filePath,
+					methodName,
+					Integer.parseInt(lineNumber)
+			));
+			return;
+		}
+
+		extractCallGraph(commitId,classesDirectory, sootRoot, mainClassName, commitPath);
+		System.out.println(queryCallGraph(commitPath,
+				filePath,
+				methodName,
+				Integer.parseInt(lineNumber)
+		));
 	}
 
 	public static void detectAST(String codeBeforeFilePath, String humanRefactoringFile, String toolRefactoringFile, JsonObject jsonObject, String refactoringType) throws Exception{

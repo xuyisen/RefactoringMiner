@@ -69,17 +69,6 @@ public class CallGraphExtractor {
         }
         Scene.v().setEntryPoints(entryPoints);
 
-        System.out.println("Soot loaded methods:");
-        for (SootClass sc : Scene.v().getApplicationClasses()) {
-            for (SootMethod sm : sc.getMethods()) {
-                if (sm.getSignature().contains("loadAdaptively")){
-                    System.out.println(" - " + sm.getSignature() + ", isConcrete=" + sm.isConcrete());
-                }
-
-            }
-        }
-
-
         PackManager.v().runPacks();
 
         ParserConfiguration config = new ParserConfiguration()
@@ -186,24 +175,24 @@ public class CallGraphExtractor {
         return className + "#" + methodName + "(" + params + ")";
     }
 
-    public static void queryCallGraph(String jsonPath, String filePath, String methodName, int lineNumber) throws Exception {
-        Gson gson = new Gson();
+    public static String queryCallGraph(String jsonPath, String filePath, String methodName, int lineNumber) throws Exception {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
         CallGraphJson graph;
 
         List<String> callers = new ArrayList<>();
         List<String> callees = new ArrayList<>();
         Map<String, String> methodIdToSourceCode = new HashMap<>();
+        String targetId = null;
 
         try (FileReader reader = new FileReader(jsonPath)) {
             graph = gson.fromJson(reader, CallGraphJson.class);
-        }catch (Exception e) {
-            System.err.println("❌ 读取 JSON 文件失败: " + jsonPath);
+        } catch (Exception e) {
+//            System.err.println("❌ 读取 JSON 文件失败: " + jsonPath);
             e.printStackTrace();
-            return;
+            return gson.toJson(Map.of("error", "failed to read json"));
         }
 
         // 查找方法 ID
-        String targetId = null;
         for (MethodNode node : graph.nodes) {
             if (node.filePath != null && node.filePath.equals(filePath)
                     && node.methodName.equals(methodName)
@@ -214,11 +203,9 @@ public class CallGraphExtractor {
         }
 
         if (targetId == null) {
-            System.out.println("❌ 未找到方法: " + filePath + "@" + methodName + ":" + lineNumber);
-            return;
+//            System.out.println("❌ 未找到方法: " + filePath + "@" + methodName + ":" + lineNumber);
+            return gson.toJson(Map.of("error", "method not found"));
         }
-
-        System.out.println("✅ Found methodId: " + targetId);
 
         // 收集 caller / callee
         for (EdgeRecord e : graph.edges) {
@@ -242,13 +229,14 @@ public class CallGraphExtractor {
             }
         }
 
-        // ✅ 输出你想要的数据结构
-        System.out.println("\n📥 Callers: " + callers);
-        System.out.println("\n📤 Callees: " + callees);
-        System.out.println("\n📄 Source Map: ");
-        methodIdToSourceCode.forEach((id, src) -> {
-            System.out.println("🔹 " + id + ":\n" + src + "\n");
-        });
+        // 构建 JSON 返回结构
+        Map<String, Object> result = new HashMap<>();
+        result.put("methodId", targetId);
+        result.put("callers", callers);
+        result.put("callees", callees);
+        result.put("methodSourceMap", methodIdToSourceCode);
+
+        return gson.toJson(result);
     }
 
 }
