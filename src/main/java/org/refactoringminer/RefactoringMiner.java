@@ -86,7 +86,7 @@ public class RefactoringMiner {
 	}
 
 	public static void extractCallGraphForCommit(String[] args) throws Exception {
-		if (args.length != 6 && args.length != 9) {
+		if (args.length != 6 && args.length != 8) {
 			throw argumentException();
 		}
 		String projectName = args[1];
