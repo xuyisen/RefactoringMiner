@@ -13,6 +13,7 @@ import soot.options.Options;
 
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +43,7 @@ public class CallGraphExtractor {
         List<EdgeRecord> edges = new ArrayList<>();
     }
 
-    public static void extractCallGraph(String commitId, String classesDir, String sourceRoot, String mainClassName, String outputJsonPath) {
+    public static void extractCallGraph(String commitId, String classesDir, String sourceRoot, String outputJsonPath) throws IOException {
         Map<String, MethodNode> methodMap = new HashMap<>();
         List<EdgeRecord> edgeList = new ArrayList<>();
 
@@ -92,6 +93,7 @@ public class CallGraphExtractor {
         output.nodes.addAll(methodMap.values());
         output.edges.addAll(edgeList);
 
+        Files.createDirectories(Paths.get(outputJsonPath).getParent());
         try (Writer writer = new FileWriter(outputJsonPath)) {
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             gson.toJson(output, writer);

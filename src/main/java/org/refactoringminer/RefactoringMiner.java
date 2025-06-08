@@ -96,7 +96,6 @@ public class RefactoringMiner {
 		String lineNumber = args[5];
 		String classesDirectory = args[6];
 		String sootRoot = args[7];
-		String mainClassName = args[8];
 		String commitPath = "tmp/data/"+ projectName + "/" + commitId + "_callGraph.json";
 		if (Files.exists(Paths.get(commitPath))) {
 			System.out.println("Call graph for commit " + commitId + " already exists.");
@@ -108,7 +107,7 @@ public class RefactoringMiner {
 			return;
 		}
 
-		extractCallGraph(commitId,classesDirectory, sootRoot, mainClassName, commitPath);
+		extractCallGraph(commitId,classesDirectory, sootRoot, commitPath);
 		System.out.println(queryCallGraph(commitPath,
 				filePath,
 				methodName,
