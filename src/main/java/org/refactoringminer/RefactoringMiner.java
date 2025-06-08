@@ -86,17 +86,18 @@ public class RefactoringMiner {
 	}
 
 	public static void extractCallGraphForCommit(String[] args) throws Exception {
-		if (args.length != 5 && args.length != 8) {
+		if (args.length != 6 && args.length != 9) {
 			throw argumentException();
 		}
-		String commitId = args[1];
-		String filePath = args[2];
-		String methodName = args[3];
-		String lineNumber = args[4];
-		String classesDirectory = args[5];
-		String sootRoot = args[6];
-		String mainClassName = args[7];
-		String commitPath = "tmp/data/" + commitId + "_callGraph.json";
+		String projectName = args[1];
+		String commitId = args[2];
+		String filePath = args[3];
+		String methodName = args[4];
+		String lineNumber = args[5];
+		String classesDirectory = args[6];
+		String sootRoot = args[7];
+		String mainClassName = args[8];
+		String commitPath = "tmp/data/"+ projectName + "/" + commitId + "_callGraph.json";
 		if (Files.exists(Paths.get(commitPath))) {
 			System.out.println("Call graph for commit " + commitId + " already exists.");
 			System.out.println(queryCallGraph(commitPath,
