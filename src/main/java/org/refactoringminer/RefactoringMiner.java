@@ -98,7 +98,6 @@ public class RefactoringMiner {
 		String sootRoot = args[7];
 		String commitPath = "tmp/data/"+ projectName + "/" + commitId + "_callGraph.json";
 		if (Files.exists(Paths.get(commitPath))) {
-			System.out.println("Call graph for commit " + commitId + " already exists.");
 			System.out.println(queryCallGraph(commitPath,
 					filePath,
 					methodName,
